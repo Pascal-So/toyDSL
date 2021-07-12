@@ -1,22 +1,22 @@
 import ast
 import inspect
-import textwrap
-import types
-from typing import Any
+from typing import List
 
 import toydsl.ir.ir as ir
 from toydsl.ir.ir import IR, AxisInterval, HorizontalDomain, LevelMarker, Offset, VerticalDomain
 
 
 class IndexGen(ast.NodeVisitor):
+    """Visitor to generated AxisIntervals from a slice or a list of slices"""
+
     def __init__(self) -> None:
-        self.offset = None
-        self.sign = None
+        self.offset: Offset = Offset()
+        self.sign: int = 1
 
     @classmethod
-    def apply(cls, node):
+    def apply(cls, node) -> List[AxisInterval]:
         foo = cls()
-        intervals = []
+        intervals: List[AxisInterval] = []
         if isinstance(node, ast.Slice):
             intervals.append(foo.visit(node))
         else:
@@ -24,7 +24,7 @@ class IndexGen(ast.NodeVisitor):
                 intervals.append(foo.visit(dim))
         return intervals
 
-    def visit_Slice(self, node: ast.Slice) -> Any:
+    def visit_Slice(self, node: ast.Slice) -> AxisInterval:
         self.offset = Offset()
         self.visit(node.lower)
         lower = self.offset
@@ -33,13 +33,17 @@ class IndexGen(ast.NodeVisitor):
         upper = self.offset
         return AxisInterval(lower, upper)
 
-    def visit_Name(self, node: ast.Name) -> Any:
+    def visit_Name(self, node: ast.Name) -> None:
+        assert node.id in ["start", "end"]
         if node.id == "end":
             self.offset.level = LevelMarker.END
         else:
             self.offset.level = LevelMarker.START
 
-    def visit_BinOp(self, node: ast.BinOp) -> Any:
+    def visit_BinOp(self, node: ast.BinOp) -> None:
+        """Visits the binary operator between the offset and the levelmarker"""
+        assert isinstance(node.left, ast.Name)
+        assert isinstance(node.right, ast.Constant)
         if isinstance(node.op, ast.Add):
             self.sign = 1
         else:
@@ -47,17 +51,17 @@ class IndexGen(ast.NodeVisitor):
         self.visit(node.left)
         self.visit(node.right)
 
-    def visit_Constant(self, node: ast.Constant) -> Any:
-        self.offset.offset += self.sign * node.value
+    def visit_Constant(self, node: ast.Constant) -> None:
+        self.offset.offset = self.sign * node.value
 
 
 class ArgumentParser(ast.NodeVisitor):
     @classmethod
-    def apply(cls, node):
+    def apply(cls, node) -> str:
         parser = cls()
         return parser.visit(node)
 
-    def visit_arg(self, node: ast.arg) -> Any:
+    def visit_arg(self, node: ast.arg) -> str:
         # TODO: check the type_comment?
         return node.arg
 
@@ -68,14 +72,14 @@ class LanguageParser(ast.NodeVisitor):
         self._scope = self._IR
         self._parent = [None]
 
-    def visit_Constant(self, node: ast.Constant):
+    def visit_Constant(self, node: ast.Constant) -> ir.LiteralExpr:
         return ir.LiteralExpr(value=str(node.value))
 
-    def visit_Name(self, node: ast.Name) -> Any:
+    def visit_Name(self, node: ast.Name) -> ir.FieldAccessExpr:
         symbol = node.id
         return ir.FieldAccessExpr(name=symbol, offset=ir.AccessOffset(0, 0, 0))
 
-    def visit_Subscript(self, node: ast.Subscript) -> Any:
+    def visit_Subscript(self, node: ast.Subscript) -> ir.FieldAccessExpr:
         offset = ir.AccessOffset(
             node.slice.value.elts[0].value,
             node.slice.value.elts[1].value,
@@ -83,17 +87,14 @@ class LanguageParser(ast.NodeVisitor):
         )
         return ir.FieldAccessExpr(name=node.value.id, offset=offset)
 
-    def visit_Assign(self, node: ast.Assign) -> Any:
+    def visit_Assign(self, node: ast.Assign) -> None:
         assert len(node.targets) == 1
         lhs = self.visit(node.targets[0])
         rhs = self.visit(node.value)
-        assign = ir.AssignmentStmt()
-        assign.left = lhs
-        assign.right = rhs
+        assign = ir.AssignmentStmt(left=lhs, right=rhs)
         self._scope.body.append(assign)
-        pass
 
-    def visit_With(self, node: ast.With) -> Any:
+    def visit_With(self, node: ast.With) -> None:
         if isinstance(node.items[0].context_expr, ast.Subscript):
             if node.items[0].context_expr.value.id == "Vertical":
                 self._parent.append(self._scope)
@@ -113,7 +114,7 @@ class LanguageParser(ast.NodeVisitor):
                     self.visit(stmt)
                 self._scope = self._parent.pop()
 
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._IR.name = node.name
         for arg in node.args.args:
             self._IR.api_signature.append(ArgumentParser.apply(arg))

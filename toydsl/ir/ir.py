@@ -12,36 +12,49 @@ class LevelMarker(enum.Enum):
     def __str__(self):
         return self.name
 
+    def __int__(self):
+        return self.value
+
 
 class Node:
     pass
 
 
 class Offset:
-    def __init__(self, level=LevelMarker.START, offset=0):
+    """An offset to a spacial dimension"""
+
+    def __init__(self, level: LevelMarker = LevelMarker.START, offset: int = 0):
         self.level = level
         self.offset = offset
 
 
 class AxisInterval:
-    def __init__(self, start=Offset(), end=Offset()):
+    """An axis interval to be traversed in any of the horizontal dimensions"""
+
+    def __init__(self, start: Offset = Offset(), end: Offset = Offset()):
         self.start = start
         self.end = end
 
 
 class HorizontalDomain(Node):
+    """A horizontal execution containing a list of statements"""
+
     def __init__(self, extents=[AxisInterval(), AxisInterval()]):
-        self.body = []
-        self.extents = extents
+        self.body: List[Stmt] = []
+        self.extents: List[AxisInterval] = extents
 
 
 class VerticalDomain(Node):
+    """A vertical execution containing a list of horizontal executions"""
+
     def __init__(self, extents=AxisInterval()):
-        self.body = []
-        self.extents = extents
+        self.body: List[HorizontalDomain] = []
+        self.extents: AxisInterval = extents
 
 
 class AccessOffset:
+    """An offset to a field access"""
+
     offsets: List[int]
 
     def __init__(self, i, j, k):
@@ -49,17 +62,6 @@ class AccessOffset:
         self.offsets.append(i)
         self.offsets.append(j)
         self.offsets.append(k)
-
-    def __str__(self):
-        return (
-            "["
-            + str(self.offsets[0])
-            + ","
-            + str(self.offsets[1])
-            + ","
-            + str(self.offsets[2])
-            + "]"
-        )
 
 
 @enum.unique
@@ -80,14 +82,20 @@ class DataType(enum.IntEnum):
 
 
 class Expr(Node):
+    """A generic expression"""
+
     pass
 
 
 class Stmt(Node):
+    """A generic statement"""
+
     pass
 
 
 class LiteralExpr(Expr):
+    """An access to a literal"""
+
     value: str
     dtype: DataType
 
@@ -97,37 +105,38 @@ class LiteralExpr(Expr):
 
 
 class FieldAccessExpr(Expr):
-    name: str
-    offset: AccessOffset
+    """An access to a field"""
 
-    def __init__(self, name, offset):
+    def __init__(self, name: str, offset: AccessOffset):
         self.name = name
         self.offset = offset
 
 
 class AssignmentStmt(Stmt):
-    left: Expr
-    right: Expr
+    """Assignments"""
 
-
-class IfStmt(Stmt):
-    condition: Expr
-    true_body: List[Stmt]
-    false_body: List[Stmt]
+    def __init__(self, left: Expr, right: Expr):
+        self.left = left
+        self.right = right
 
 
 class BinaryOp(Expr):
-    left: Expr
-    right: Expr
-    operator: str
+    """Any binary operator expression"""
+
+    def __init__(self, left: Expr, right: Expr, operator: str):
+        self.left = left
+        self.right = right
+        self.operator = operator
 
 
 class FieldDecl(Stmt):
+    """Declarations of fields"""
+
     pass
 
 
 class IR(Node):
     def __init__(self):
-        self.name = ""
-        self.body = []
-        self.api_signature = []
+        self.name: str = ""
+        self.body: List[VerticalDomain] = []
+        self.api_signature: List[str] = []

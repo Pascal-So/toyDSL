@@ -1,11 +1,22 @@
+from typing import Any
+
 from toydsl.ir.ir import Node
 
 
 class IRNodeVisitor:
-    def visit(self, node: Node, **kwargs):
+    """
+    Basic visitor for all the nodes of the IR
+
+    A NodeVisitor instance walks a node tree and calls a visitor
+    function for every item found. This class is meant to be subclassed,
+    with the subclass adding visitor methods.
+
+    """
+
+    def visit(self, node: Node, **kwargs: Any) -> Any:
         return self._visit(node, **kwargs)
 
-    def _visit(self, node: Node, **kwargs):
+    def _visit(self, node: Node, **kwargs: Any) -> Any:
         visitor = self.generic_visit
         if isinstance(node, Node):
             for node_class in node.__class__.__mro__:
@@ -15,3 +26,6 @@ class IRNodeVisitor:
                     break
 
         return visitor(node, **kwargs)
+
+    def generic_visit(self, node: Node, **kwargs: Any) -> Any:
+        raise NotImplementedError

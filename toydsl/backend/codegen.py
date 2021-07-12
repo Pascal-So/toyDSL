@@ -10,7 +10,16 @@ import toydsl.ir.ir as ir
 from toydsl.ir.visitor import IRNodeVisitor
 
 
+black_mode = black.FileMode(
+    target_versions={black.TargetVersion.PY36, black.TargetVersion.PY37},
+    line_length=100,
+    string_normalization=True,
+)
+
+
 class TextBlock:
+    """A block of code with indentation."""
+
     def __init__(
         self,
         *,
@@ -19,114 +28,145 @@ class TextBlock:
         indent_char: str = " ",
         end_line: str = "\n",
     ) -> None:
+        """
+        Args:
+        indent_level: Initial indentation level.
+        indent_size: Number of characters per indentation level.
+        indent_char: Character used in the indentation.
+        end_line: Character or string used as new-line separator.
+        """
         self.indent_level = indent_level
         self.indent_size = indent_size
         self.indent_char = indent_char
         self.end_line = end_line
         self.lines: List[str] = []
 
-    def append(self, new_line):
-        self.lines.append(self.indent_str + new_line)
+    def append(self, new_line: str) -> None:
+        self.lines.append(self.indent_str() + new_line)
 
-    @property
     def indent_str(self) -> str:
         return self.indent_char * (self.indent_level * self.indent_size)
 
-    def indent(self, steps: int = 1) -> TextBlock:
+    def indent(self, steps: int = 1) -> None:
         self.indent_level += steps
-        return self
 
 
 class CodeGen(IRNodeVisitor):
     """
-    The code-generation module that traverses the IR and generates code form it
+    The code-generation module that traverses the IR and generates code form it.
+    This module generates simple python code with tripple-nested loops
     """
 
     @classmethod
     def apply(cls: CodeGen, ir: ir.IR) -> str:
         """
-        entrypoint for the code generation
+        Entrypoint for the code generation, applying this to an IR returns a formatted function for that IR
         """
         codegen = cls()
         return codegen.visit(ir)
 
     @staticmethod
-    def offset_to_string(offset):
+    def offset_to_string(offset: ir.AccessOffset) -> str:
         """
         Converts the offset of a FieldAccess to a string with the proper indexing
         """
         return (
             "[idx_i + "
             + str(offset.offsets[0])
-            + ",idx_j + "
+            + ", idx_j + "
             + str(offset.offsets[1])
-            + ",idx_k + "
+            + ", idx_k + "
             + str(offset.offsets[2])
             + "]"
         )
 
+    @staticmethod
+    def create_vertical_loop(vertical_domain: ir.VerticalDomain) -> TextBlock:
+        """
+        Opens a textblock and generates the loop to start the vertical block
+        """
+        text_block = TextBlock()
+        start_idx = int(vertical_domain.extents.start.level)
+        start_string = "k[{start_idx}]+{offset}".format(
+            start_idx=start_idx, offset=vertical_domain.extents.start.offset
+        )
+        end_idx = int(vertical_domain.extents.end.level)
+        end_string = "k[{end_idx}]+{offset}".format(
+            end_idx=end_idx, offset=vertical_domain.extents.end.offset
+        )
+        text_block.append(
+            "for idx_k in range({condition}):".format(condition=start_string + "," + end_string)
+        )
+        text_block.indent()
+        return text_block
+
+    @staticmethod
+    def create_horizontal_loop(
+        loop_variable: str, horizontal_domain: ir.HorizontalDomain
+    ) -> TextBlock:
+        assert loop_variable in ["i", "j"]
+        horizontal_loop = TextBlock()
+        index = 0 if loop_variable == "i" else 1
+        startidx = int(horizontal_domain.extents[index].start.level)
+        start = "{loop_variable}[{startidx}]+{offset}".format(
+            startidx=startidx,
+            offset=horizontal_domain.extents[index].start.offset,
+            loop_variable=loop_variable,
+        )
+        endidx = int(horizontal_domain.extents[index].end.level)
+        end = "{loop_variable}[{endidx}]+{offset}".format(
+            endidx=endidx,
+            offset=horizontal_domain.extents[index].end.offset,
+            loop_variable=loop_variable,
+        )
+        horizontal_loop.append(
+            "for idx_{loop_variable} in range({condition}):".format(
+                condition=start + "," + end, loop_variable=loop_variable
+            )
+        )
+        horizontal_loop.indent()
+        return horizontal_loop
+
     # ---- Visitor handlers ----
-    def generic_visit(self, node: ir.Node, **kwargs):
+    def generic_visit(self, node: ir.Node, **kwargs) -> None:
+        """
+        Each visit needs to do something in code-generation, there can't be a default visit
+        """
         raise RuntimeError("Invalid IR node: {}".format(node))
 
-    def visit_LiteralExpr(self, node: ir.LiteralExpr):
+    def visit_LiteralExpr(self, node: ir.LiteralExpr) -> str:
         return node.value
 
-    def visit_FieldAccessExpr(self, node: ir.FieldAccessExpr):
+    def visit_FieldAccessExpr(self, node: ir.FieldAccessExpr) -> str:
         return node.name + self.offset_to_string(node.offset)
 
-    def visit_AssignmentStmt(self, node: ir.AssignmentStmt):
+    def visit_AssignmentStmt(self, node: ir.AssignmentStmt) -> str:
         return self.visit(node.left) + "=" + self.visit(node.right)
 
-    def visit_BinaryOp(self, node: ir.BinaryOp):
+    def visit_BinaryOp(self, node: ir.BinaryOp) -> str:
         return self.visit(node.left) + node.operator + self.visit(node.right)
 
-    def visit_VerticalDomain(self, node: ir.VerticalDomain):
-        body_sources = TextBlock()
-        startidx = 0 if node.extents.start.level == ir.LevelMarker.START else -1
-        start = "k[{startidx}]+{offset}".format(
-            startidx=startidx, offset=node.extents.start.offset
-        )
-        endidx = 0 if node.extents.end.level == ir.LevelMarker.START else -1
-        end = "k[{endidx}]+{offset}".format(endidx=endidx, offset=node.extents.end.offset)
-        body_sources.append("for idx_k in range({condition}):".format(condition=start + "," + end))
-        body_sources.indent()
+    def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
+        vertical_loop = self.create_vertical_loop(node)
         for stmt in node.body:
             lines_of_code = self.visit(stmt)
             for line in lines_of_code:
-                body_sources.append(line)
+                vertical_loop.append(line)
 
-        return body_sources.lines
+        return vertical_loop.lines
 
-    def visit_HorizontalDomain(self, node: ir.HorizontalDomain):
-        outer_loop = TextBlock()
-        startidx = 0 if node.extents[0].start.level == ir.LevelMarker.START else -1
-        start = "i[{startidx}]+{offset}".format(
-            startidx=startidx, offset=node.extents[0].start.offset
-        )
-        endidx = 0 if node.extents[0].end.level == ir.LevelMarker.START else -1
-        end = "i[{endidx}]+{offset}".format(endidx=endidx, offset=node.extents[0].end.offset)
-        outer_loop.append("for idx_i in range({condition}):".format(condition=start + "," + end))
-        outer_loop.indent()
-
-        inner_loop = TextBlock()
-        startidx = 0 if node.extents[1].start.level == ir.LevelMarker.START else -1
-        start = "j[{startidx}]+{offset}".format(
-            startidx=startidx, offset=node.extents[1].start.offset
-        )
-        endidx = 0 if node.extents[1].end.level == ir.LevelMarker.START else -1
-        end = "j[{endidx}]+{offset}".format(endidx=endidx, offset=node.extents[1].end.offset)
-        inner_loop.append("for idx_j in range({condition}):".format(condition=start + "," + end))
-        inner_loop.indent()
+    def visit_HorizontalDomain(self, node: ir.HorizontalDomain) -> List[str]:
+        inner_loop = self.create_horizontal_loop("j", node)
         for stmt in node.body:
             inner_loop.append(self.visit(stmt))
 
+        outer_loop = self.create_horizontal_loop("i", node)
         for line in inner_loop.lines:
             outer_loop.append(line)
 
         return outer_loop.lines
 
-    def visit_IR(self, node: ir.IR):
+    def visit_IR(self, node: ir.IR) -> str:
         scope = TextBlock()
         function_def = "def {name}({args},i,j,k):".format(
             name=node.name, args=", ".join(node.api_signature)
@@ -138,17 +178,17 @@ class CodeGen(IRNodeVisitor):
             vertical_regions = self.visit(stmt)
             for line in vertical_regions:
                 scope.append(line)
-        final = "\n".join(scope.lines)
-        black_mode = black.FileMode(
-            target_versions={black.TargetVersion.PY36, black.TargetVersion.PY37},
-            line_length=100,
-            string_normalization=True,
-        )
-        formatted_source = black.format_str(final, mode=black_mode)
+        code_block = "\n".join(scope.lines)
+
+        formatted_source = black.format_str(code_block, mode=black_mode)
         return formatted_source
 
 
 class ModuleGen:
+    """
+    Generator of the module from a given file
+    """
+
     def __init__(self):
         pass
 
@@ -158,6 +198,9 @@ class ModuleGen:
         return module_gen.make_function_from_file(qualified_name, file_path)
 
     def make_function_from_file(self, qualified_name, file_path):
+        """
+        Generation of the module and retrieving the function from the module
+        """
         module = self.make_module_from_file(qualified_name, file_path)
         return getattr(module, qualified_name)
 
