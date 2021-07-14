@@ -81,9 +81,9 @@ class LanguageParser(ast.NodeVisitor):
 
     def visit_Subscript(self, node: ast.Subscript) -> ir.FieldAccessExpr:
         offset = ir.AccessOffset(
-            node.slice.value.elts[0].value,
-            node.slice.value.elts[1].value,
-            node.slice.value.elts[2].value,
+            node.slice.elts[0].value,
+            node.slice.elts[1].value,
+            node.slice.elts[2].value,
         )
         return ir.FieldAccessExpr(name=node.value.id, offset=offset)
 
