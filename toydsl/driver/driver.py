@@ -3,7 +3,7 @@ import hashlib
 import inspect
 import os
 
-from toydsl.backend.codegen import CodeGen, ModuleGen
+from toydsl.backend.codegencpp import CodeGen, ModuleGen
 from toydsl.frontend.frontend import parse
 
 
@@ -45,7 +45,7 @@ def computation(func):
         hash = hash_source_code(definition_func)
         stencil_call = driver(
             definition_func,
-            "{cache_dir}/generated_{hash}.py".format(hash=hash, cache_dir=cache_dir),
+            "{cache_dir}/generated_{hash}.cpp".format(hash=hash, cache_dir=cache_dir),
         )
         return stencil_call
 
