@@ -19,7 +19,7 @@ def driver_cpp(function, hash: str, cache_dir: Path):
     code_dir = cache_dir / "cpp_{}".format(hash)
     so_filename = code_dir / "build" / "dslgen.so"
 
-    if not os.path.isfile(so_filename):
+    if True or not os.path.isfile(so_filename):
         # For now we just perform all the generation steps if the .so file
         # is missing. The case where some of the steps have already been
         # performed is rare and we wouldn't save much time anyway.

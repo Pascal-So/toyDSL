@@ -52,6 +52,51 @@ def setup_code_dir_cpp(code_dir: Path):
     shutil.copyfile(cpp_dir / ".clang-format", code_dir / ".clang-format")
 
 
+def offset_to_string(offset: ir.AccessOffset) -> str:
+    """
+    Converts the offset of a FieldAccess to a string with the proper indexing
+    """
+    return (
+        "[(idx_i + "
+        + str(offset.offsets[0])
+        + ")*dim2 + (idx_j + "
+        + str(offset.offsets[1])
+        + ") + (idx_k + "
+        + str(offset.offsets[2])
+        + ")*dim3]"
+    )
+
+def create_loop(loop_variable: str, extents: ir.AxisInterval) -> str:
+    assert loop_variable in ["i", "j", "k"]
+
+    def create_offset(offset: ir.Offset):
+        side = "start" if offset.level == ir.LevelMarker.START else "end"
+        return "{}_{} + {}".format(side, loop_variable, offset.offset)
+
+    return "for (std::size_t {var} = {start}; {var} < {end}; ++{var})".format(
+        start=create_offset(extents.start),
+        end=create_offset(extents.end),
+        var="idx_{}".format(loop_variable)
+    )
+
+def create_vertical_loop(vertical_domain: ir.VerticalDomain) -> str:
+    return create_loop("k", vertical_domain.extents)
+
+def create_horizontal_loop(
+    loop_variable: str, horizontal_domain: ir.HorizontalDomain
+) -> str:
+    assert loop_variable in ["i", "j"]
+
+    index = 0 if loop_variable == "i" else 1
+    extents = horizontal_domain.extents[index]
+
+    return create_loop(loop_variable, extents)
+
+def generate_converter(arg_name: str):
+    return """
+        auto {a} = reinterpret_cast<scalar_t*>({a}_np.get_data());
+    """.format(a=arg_name)
+
 class CodeGenCpp(IRNodeVisitor):
     """
     The code-generation module that traverses the IR and generates code form it.
@@ -65,55 +110,6 @@ class CodeGenCpp(IRNodeVisitor):
         codegen = cls()
         return codegen.visit(ir)
 
-    @staticmethod
-    def offset_to_string(offset: ir.AccessOffset) -> str:
-        """
-        Converts the offset of a FieldAccess to a string with the proper indexing
-        """
-        return (
-            "[idx_i + "
-            + str(offset.offsets[0])
-            + ", idx_j + "
-            + str(offset.offsets[1])
-            + ", idx_k + "
-            + str(offset.offsets[2])
-            + "]"
-        )
-
-    @staticmethod
-    def create_vertical_loop(vertical_domain: ir.VerticalDomain) -> str:
-        start_idx = int(vertical_domain.extents.start.level)
-        start_string = "k[{start_idx}]+{offset}".format(
-            start_idx=start_idx, offset=vertical_domain.extents.start.offset
-        )
-        end_idx = int(vertical_domain.extents.end.level)
-        end_string = "k[{end_idx}]+{offset}".format(
-            end_idx=end_idx, offset=vertical_domain.extents.end.offset
-        )
-        return "for (std::size_t idx_k = {}; idx_k < {}; ++idx_k)".format(start_string, end_string)
-
-    @staticmethod
-    def create_horizontal_loop(
-        loop_variable: str, horizontal_domain: ir.HorizontalDomain
-    ) -> str:
-        assert loop_variable in ["i", "j"]
-        index = 0 if loop_variable == "i" else 1
-        startidx = int(horizontal_domain.extents[index].start.level)
-        start = "{loop_variable}[{startidx}]+{offset}".format(
-            startidx=startidx,
-            offset=horizontal_domain.extents[index].start.offset,
-            loop_variable=loop_variable,
-        )
-        endidx = int(horizontal_domain.extents[index].end.level)
-        end = "{loop_variable}[{endidx}]+{offset}".format(
-            endidx=endidx,
-            offset=horizontal_domain.extents[index].end.offset,
-            loop_variable=loop_variable,
-        )
-        return "for (std::size_t {var} = {start}; {var} < {end}; ++{var})".format(
-            start=start, end=end, var="idx_{}".format(loop_variable)
-        )
-
     # ---- Visitor handlers ----
     def generic_visit(self, node: ir.Node, **kwargs) -> None:
         """
@@ -125,7 +121,7 @@ class CodeGenCpp(IRNodeVisitor):
         return node.value
 
     def visit_FieldAccessExpr(self, node: ir.FieldAccessExpr) -> str:
-        return node.name + self.offset_to_string(node.offset)
+        return node.name + offset_to_string(node.offset)
 
     def visit_AssignmentStmt(self, node: ir.AssignmentStmt) -> str:
         left = self.visit(node.left)
@@ -136,7 +132,7 @@ class CodeGenCpp(IRNodeVisitor):
         return self.visit(node.left) + node.operator + self.visit(node.right)
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
-        vertical_loop = [self.create_vertical_loop(node)]
+        vertical_loop = [create_vertical_loop(node)]
         vertical_loop.append("{")
         for stmt in node.body:
             lines_of_code = self.visit(stmt)
@@ -147,13 +143,13 @@ class CodeGenCpp(IRNodeVisitor):
         return vertical_loop
 
     def visit_HorizontalDomain(self, node: ir.HorizontalDomain) -> List[str]:
-        inner_loop = [self.create_horizontal_loop("j", node)]
+        inner_loop = [create_horizontal_loop("j", node)]
         inner_loop.append("{")
         for stmt in node.body:
             inner_loop.append(self.visit(stmt))
         inner_loop.append("}")
 
-        outer_loop = [self.create_horizontal_loop("i", node)]
+        outer_loop = [create_horizontal_loop("i", node)]
         outer_loop.append("{")
         for line in inner_loop:
             outer_loop.append(line)
@@ -166,19 +162,43 @@ class CodeGenCpp(IRNodeVisitor):
             #include <boost/python.hpp>
             #include <boost/python/numpy.hpp>
 
-            using numpy_t = boost::python::numpy::ndarray;
+            namespace np = boost::python::numpy;
+
+            using scalar_t = double;
+            using numpy_t = np::ndarray;
             using bounds_t = std::array<std::size_t, 2>;
 
             void {name}({array_args}, {bounds}) {{
+                Py_Initialize();
+                np::initialize();
+
+                {converters}
+
+                const std::size_t start_i = i[0];
+                const std::size_t end_i = i[1];
+                const std::size_t start_j = j[0];
+                const std::size_t end_j = j[1];
+                const std::size_t start_k = k[0];
+                const std::size_t end_k = k[1];
+
+                const std::size_t dim2 = end_j;
+                const std::size_t dim3 = end_j * end_i;
         """.format(
             name=node.name,
             array_args=", ".join(["numpy_t &{}_np".format(arg) for arg in node.api_signature]),
-            bounds=", ".join(["bounds_t const& {}".format(axis) for axis in ["i", "j", "k"]])
+            bounds=", ".join(["const bounds_t &{}".format(axis) for axis in ["i", "j", "k"]]),
+            converters="".join(map(generate_converter, node.api_signature))
         )]
 
         for stmt in node.body:
             scope.extend(self.visit(stmt))
 
-        scope.append("}")
+        scope.append("""
+            }}
+
+            BOOST_PYTHON_MODULE(dslgen) {{
+                boost::python::def("{name}", {name});
+            }}
+        """.format(name=node.name))
 
         return "\n".join(scope)
