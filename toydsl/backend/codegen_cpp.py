@@ -6,6 +6,19 @@ import shutil
 import os
 from pathlib import Path
 from toydsl.ir.visitor import IRNodeVisitor
+import importlib.util
+
+def load_cpp_module(so_filename: Path):
+    """
+    Load the python module from the .so file.
+
+    https://stackoverflow.com/a/67692
+    """
+
+    spec = importlib.util.spec_from_file_location("dslgen", so_filename)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 def format_cpp(cpp_filename: Path):
     """

@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from toydsl.backend.codegen import CodeGen, ModuleGen
-from toydsl.backend.codegen_cpp import CodeGenCpp, format_cpp, compile_cpp, setup_code_dir_cpp
+from toydsl.backend.codegen_cpp import CodeGenCpp, format_cpp, compile_cpp, setup_code_dir_cpp, load_cpp_module
 from toydsl.frontend.frontend import parse
 
 
@@ -19,7 +19,11 @@ def driver_cpp(function, hash: str, cache_dir: Path):
     code_dir = cache_dir / "cpp_{}".format(hash)
     so_filename = code_dir / "build" / "dslgen.so"
 
-    if True or not os.path.isfile(so_filename):
+    # we need to do this outside of the if block because we need the function name
+    ir = parse(function)
+    function_name = ir.name
+
+    if not os.path.isfile(so_filename):
         # For now we just perform all the generation steps if the .so file
         # is missing. The case where some of the steps have already been
         # performed is rare and we wouldn't save much time anyway.
@@ -28,7 +32,6 @@ def driver_cpp(function, hash: str, cache_dir: Path):
 
         setup_code_dir_cpp(code_dir)
 
-        ir = parse(function)
         code = CodeGenCpp.apply(ir)
         cpp_filename = code_dir / "dslgen.cpp"
 
@@ -41,7 +44,7 @@ def driver_cpp(function, hash: str, cache_dir: Path):
         end_time = time.perf_counter()
         print("\n\nGenerated, formatted, and compiled C++ code in {:.2f} seconds.".format(end_time - start_time), file=sys.stderr)
 
-    return ModuleGen.apply(ir.name, so_filename)
+    return getattr(load_cpp_module(so_filename), function_name)
 
 def driver_python(function, hash: str, cache_dir: Path):
     """
