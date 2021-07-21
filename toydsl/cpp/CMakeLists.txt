@@ -14,7 +14,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(Boost 1.76 REQUIRED COMPONENTS python)
+find_package(Boost 1.76 REQUIRED COMPONENTS python numpy)
 
 # include(FetchContent)
 # FetchContent_Declare(eigen3
@@ -36,5 +36,6 @@ target_link_libraries(dslgen
     Python3::Module
     Python3::Python
     Boost::python
+    Boost::numpy
     # eigen3
 )

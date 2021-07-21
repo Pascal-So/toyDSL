@@ -93,9 +93,7 @@ def create_horizontal_loop(
     return create_loop(loop_variable, extents)
 
 def generate_converter(arg_name: str):
-    return """
-        auto {a} = reinterpret_cast<scalar_t*>({a}_np.get_data());
-    """.format(a=arg_name)
+    return "auto {a} = reinterpret_cast<scalar_t*>({a}_np.get_data());".format(a=arg_name)
 
 class CodeGenCpp(IRNodeVisitor):
     """
@@ -158,36 +156,32 @@ class CodeGenCpp(IRNodeVisitor):
         return outer_loop
 
     def visit_IR(self, node: ir.IR) -> str:
-        scope = ["""
-            #include <boost/python.hpp>
+        scope = ["""#include <boost/python.hpp>
             #include <boost/python/numpy.hpp>
 
             namespace np = boost::python::numpy;
 
             using scalar_t = double;
             using numpy_t = np::ndarray;
-            using bounds_t = std::array<std::size_t, 2>;
+            using bounds_t = boost::python::list;
 
             void {name}({array_args}, {bounds}) {{
-                Py_Initialize();
-                np::initialize();
-
                 {converters}
 
-                const std::size_t start_i = i[0];
-                const std::size_t end_i = i[1];
-                const std::size_t start_j = j[0];
-                const std::size_t end_j = j[1];
-                const std::size_t start_k = k[0];
-                const std::size_t end_k = k[1];
+                const std::size_t start_i = boost::python::extract<std::size_t>(i[0]);
+                const std::size_t end_i = boost::python::extract<std::size_t>(i[1]);
+                const std::size_t start_j = boost::python::extract<std::size_t>(j[0]);
+                const std::size_t end_j = boost::python::extract<std::size_t>(j[1]);
+                const std::size_t start_k = boost::python::extract<std::size_t>(k[0]);
+                const std::size_t end_k = boost::python::extract<std::size_t>(k[1]);
 
-                const std::size_t dim2 = end_j;
-                const std::size_t dim3 = end_j * end_i;
+                const std::size_t dim2 = (end_j - start_j);
+                const std::size_t dim3 = dim2 * (end_i - start_i);
         """.format(
             name=node.name,
             array_args=", ".join(["numpy_t &{}_np".format(arg) for arg in node.api_signature]),
             bounds=", ".join(["const bounds_t &{}".format(axis) for axis in ["i", "j", "k"]]),
-            converters="".join(map(generate_converter, node.api_signature))
+            converters="\n".join(map(generate_converter, node.api_signature))
         )]
 
         for stmt in node.body:
@@ -197,6 +191,8 @@ class CodeGenCpp(IRNodeVisitor):
             }}
 
             BOOST_PYTHON_MODULE(dslgen) {{
+                Py_Initialize();
+                np::initialize();
                 boost::python::def("{name}", {name});
             }}
         """.format(name=node.name))
