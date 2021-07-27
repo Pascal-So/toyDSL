@@ -13,7 +13,7 @@ def otherfunc(out_field, in_field):
         with Horizontal[start : end - 1, start : end - 1]:
             in_field[1, 0, 0] = 2
         with Horizontal[start : end - 1, start:end]:
-            out_field = in_field[1, 0, 0]
+            out_field = in_field[1, 0, 0] + 4*in_field[0,1,0]
 
 
 def set_up_data():
