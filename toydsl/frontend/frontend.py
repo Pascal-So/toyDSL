@@ -121,6 +121,25 @@ class LanguageParser(ast.NodeVisitor):
         for element in node.body:
             self.visit(element)
 
+    def visit_BinOp(self,node: ast.BinOp) -> ir.BinaryOp:
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.right)
+        if isinstance(node.op, ast.Add):
+            op_string = "+"
+        elif isinstance(node.op, ast.Sub):
+            op_string = "-"
+        elif isinstance(node.op, ast.Mult):
+            op_string = "*"
+        elif isinstance(node.op, ast.Div):
+            op_string = "/"
+        elif isinstance(node.op, ast.Pow):
+            op_string = "**"
+        elif isinstance(node.op, ast.Mod):
+            op_string = "%"
+        else:
+            op_string = ""
+        return ir.BinaryOp(left=lhs,right=rhs,operator=op_string)
+
 
 def parse(function):
     p = LanguageParser()

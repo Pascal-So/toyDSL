@@ -72,9 +72,9 @@ def offset_to_string(offset: ir.AccessOffset) -> str:
     return (
         "[(idx_i + "
         + str(offset.offsets[0])
-        + ")*dim2 + (idx_j + "
+        + ") + (idx_j + "
         + str(offset.offsets[1])
-        + ") + (idx_k + "
+        + ")*dim2 + (idx_k + "
         + str(offset.offsets[2])
         + ")*dim3]"
     )
@@ -139,8 +139,28 @@ class CodeGenCpp(IRNodeVisitor):
         right = self.visit(node.right)
         return "{} = {};".format(left, right)
 
-    def visit_BinaryOp(self, node: ir.BinaryOp) -> str:
-        return self.visit(node.left) + node.operator + self.visit(node.right)
+    def visit_BinaryOp(self, node: ir.BinaryOp) -> str: # TODO : Do not strip out the brackets
+        assert(node.operator),"Unknown operator"
+        # Keep the commented lines bellow, it might be useful later
+        # if node.operator == "+":
+        #     op_string = "+"
+        # elif node.operator == "-":
+        #     op_string = "-"
+        # elif node.operator == "*":
+        #     op_string = "*"
+        # elif node.operator == "/":
+        #     op_string = "/"
+        # elif node.operator == "**":
+        #     op_string = "**"
+        # elif node.operator == "%":
+        #     op_string = "%"
+        # else:
+        #     assert(False),"Operator has been defined in frontend.py only"
+        if node.operator == "**":
+            binaryOp_str = "pow("+self.visit(node.left) + "," + self.visit(node.right) + ")"
+        else:
+            binaryOp_str = self.visit(node.left) + node.operator + self.visit(node.right)
+        return binaryOp_str
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
         vertical_loop = [create_vertical_loop(node)]
@@ -188,8 +208,8 @@ class CodeGenCpp(IRNodeVisitor):
                 const std::size_t start_k = boost::python::extract<std::size_t>(k[0]);
                 const std::size_t end_k = boost::python::extract<std::size_t>(k[1]);
 
-                const std::size_t dim2 = (end_j - start_j);
-                const std::size_t dim3 = dim2 * (end_i - start_i);
+                const std::size_t dim2 = (end_i - start_i);
+                const std::size_t dim3 = dim2 * (end_j - start_j);
         """.format(
             name=node.name,
             array_args=", ".join(["numpy_t &{}_np".format(arg) for arg in node.api_signature]),
