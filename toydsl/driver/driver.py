@@ -16,12 +16,21 @@ def driver_cpp(function, hash: str, cache_dir: Path):
     Driver for generating the c++ code, formatting it, compiling it, and loading the
     resulting shared object as a python module.
     """
-    code_dir = cache_dir / "cpp_{}".format(hash)
-    so_filename = code_dir / "build" / "dslgen.so"
 
     # we need to do this outside of the if block because we need the function name
     ir = parse(function)
     function_name = ir.name
+    code = CodeGenCpp.apply(ir)
+
+    # We actually hash the generated C++ code as well. This is a convenience feature
+    # so that changing the C++ code generation causes an update. In a real usecase
+    # the generated C++ code would not be hashed, we would only need the hash of
+    # the input code, because end-users would not be changing the function mapping
+    # input code to C++.
+    cpp_hash = hash_string(code)
+
+    code_dir = cache_dir / "cpp_{}_{}".format(hash, cpp_hash)
+    so_filename = code_dir / "build" / "dslgen.so"
 
     if not os.path.isfile(so_filename):
         # For now we just perform all the generation steps if the .so file
@@ -32,7 +41,6 @@ def driver_cpp(function, hash: str, cache_dir: Path):
 
         setup_code_dir_cpp(code_dir)
 
-        code = CodeGenCpp.apply(ir)
         cpp_filename = code_dir / "dslgen.cpp"
 
         with open(cpp_filename, "w") as f:
@@ -71,13 +79,14 @@ def set_up_cache_directory() -> str:
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
 
+def hash_string(input: str) -> str:
+    hash_algorithm = hashlib.sha256()
+    hash_algorithm.update(input.encode())
+    return hash_algorithm.hexdigest()[:10]
 
 def hash_source_code(definition_func) -> str:
     """Hashes the source code of a function to get a unique ID for a target file"""
-    hash_algorithm = hashlib.sha256()
-    hash_algorithm.update(str.encode(repr(inspect.getsource(definition_func))))
-    return hash_algorithm.hexdigest()[:10]
-
+    return hash_string(repr(inspect.getsource(definition_func)))
 
 def computation(func):
     """Main entrypoint into the DSL.
