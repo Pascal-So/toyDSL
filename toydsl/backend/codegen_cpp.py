@@ -194,8 +194,6 @@ class CodeGenCpp(IRNodeVisitor):
             #include <boost/python/numpy.hpp>
 
             #include "../../include/tsc_x86.h"
-            #include <iostream>
-            #include <fstream>
 
             namespace np = boost::python::numpy;
 
@@ -203,24 +201,22 @@ class CodeGenCpp(IRNodeVisitor):
             using numpy_t = np::ndarray;
             using bounds_t = boost::python::list;
 
-            myInt64 cycles;
-            myInt64 start;
+            std::int64_t {name}({array_args}, {bounds}) {{
+                const auto start_cycle = start_tsc();
 
-            void {name}({array_args}, {bounds}) {{
-                start = start_tsc();
-                int num_runs = 1000;
-                for(int ii=0;ii<num_runs;ii++){{
-                {converters}
+                const std::size_t num_runs = 1000;
+                for (std::size_t ii = 0; ii < num_runs; ii++){{
+                    {converters}
 
-                const std::size_t start_i = boost::python::extract<std::size_t>(i[0]);
-                const std::size_t end_i = boost::python::extract<std::size_t>(i[1]);
-                const std::size_t start_j = boost::python::extract<std::size_t>(j[0]);
-                const std::size_t end_j = boost::python::extract<std::size_t>(j[1]);
-                const std::size_t start_k = boost::python::extract<std::size_t>(k[0]);
-                const std::size_t end_k = boost::python::extract<std::size_t>(k[1]);
+                    const std::size_t start_i = boost::python::extract<std::size_t>(i[0]);
+                    const std::size_t end_i = boost::python::extract<std::size_t>(i[1]);
+                    const std::size_t start_j = boost::python::extract<std::size_t>(j[0]);
+                    const std::size_t end_j = boost::python::extract<std::size_t>(j[1]);
+                    const std::size_t start_k = boost::python::extract<std::size_t>(k[0]);
+                    const std::size_t end_k = boost::python::extract<std::size_t>(k[1]);
 
-                const std::size_t dim2 = (end_i - start_i);
-                const std::size_t dim3 = dim2 * (end_j - start_j);
+                    const std::size_t dim2 = (end_i - start_i);
+                    const std::size_t dim3 = dim2 * (end_j - start_j);
         """.format(
             name=node.name,
             array_args=", ".join(["numpy_t &{}_np".format(arg) for arg in node.api_signature]),
@@ -232,14 +228,9 @@ class CodeGenCpp(IRNodeVisitor):
             scope.extend(self.visit(stmt))
 
         scope.append("""
-            }}
-            cycles = stop_tsc(start);
-            std::ofstream fp;
-            fp.open("timings/{time_file}.txt",std::ios::out | std::ios::app);
-            if(fp.is_open()){{
-                fp << cycles/num_runs << std::endl;
-                fp.close();
-            }}
+                }}
+
+                return stop_tsc(start_cycle);
             }}
 
             BOOST_PYTHON_MODULE(dslgen) {{
@@ -247,6 +238,6 @@ class CodeGenCpp(IRNodeVisitor):
                 np::initialize();
                 boost::python::def("{name}", {name});
             }}
-        """.format(name=node.name,time_file=dir_name))
+        """.format(name=node.name))
 
         return "\n".join(scope)

@@ -32,9 +32,14 @@ def set_up_data():
 
 if __name__ == "__main__":
     input, output, i, j, k = set_up_data()
+
+    num_runs = 10
+
+    cpp_times = []
     start = time.time_ns()
-    for ii in range(10):
-        otherfunc(output, input, i, j, k)
+    for _ in range(num_runs):
+        cpp_time = otherfunc(output, input, i, j, k)
+        cpp_times.append(cpp_time)
     end = time.time_ns()
     # Using this inupt, we expect the output of b to be
     # [[2. 2. 2. 2. 0.]
@@ -43,4 +48,6 @@ if __name__ == "__main__":
     #  [2. 2. 2. 2. 0.]
     #  [1. 1. 1. 1. 0.]]
     print(output[:, :, 0].T)
-    print("{} seconds".format((end-start)/(10**9)))
+
+    print("Called otherfunc {} times in {} seconds".format(num_runs, (end-start)/(10**9)))
+    print("Measured times inside otherfunc:", cpp_times)
