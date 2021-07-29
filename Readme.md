@@ -2,10 +2,10 @@
 
 Requirements:
 
-* cmake >= 3.14
+* cmake >= 3.12
 * make
-* python >= 3.6
-* boost 1.76
+* python 3.9
+* boost 1.68
 * clang-format (optional)
 
 ## Building / Running

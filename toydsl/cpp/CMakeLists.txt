@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.12)
 project(dslgen)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -14,7 +14,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(Boost 1.71 REQUIRED COMPONENTS python numpy)
+find_package(Boost 1.68 REQUIRED COMPONENTS python numpy)
 
 # include(FetchContent)
 # FetchContent_Declare(eigen3
