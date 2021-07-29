@@ -56,7 +56,8 @@ def setup_code_dir_cpp(code_dir: Path):
     The required files are copied from the `cpp` directory adjacent to
     this `backend` directory.
     """
-
+    global dir_name
+    dir_name = str(code_dir).split("/")[1]
     os.makedirs(code_dir, exist_ok=True)
 
     backend_dir = Path(__file__).parent
@@ -192,13 +193,23 @@ class CodeGenCpp(IRNodeVisitor):
         scope = ["""#include <boost/python.hpp>
             #include <boost/python/numpy.hpp>
 
+            #include "../../include/tsc_x86.h"
+            #include <iostream>
+            #include <fstream>
+
             namespace np = boost::python::numpy;
 
             using scalar_t = double;
             using numpy_t = np::ndarray;
             using bounds_t = boost::python::list;
 
+            myInt64 cycles;
+            myInt64 start;
+
             void {name}({array_args}, {bounds}) {{
+                start = start_tsc();
+                int num_runs = 1000;
+                for(int ii=0;ii<num_runs;ii++){{
                 {converters}
 
                 const std::size_t start_i = boost::python::extract<std::size_t>(i[0]);
@@ -222,12 +233,20 @@ class CodeGenCpp(IRNodeVisitor):
 
         scope.append("""
             }}
+            cycles = stop_tsc(start);
+            std::ofstream fp;
+            fp.open("timings/{time_file}.txt",std::ios::out | std::ios::app);
+            if(fp.is_open()){{
+                fp << cycles/num_runs << std::endl;
+                fp.close();
+            }}
+            }}
 
             BOOST_PYTHON_MODULE(dslgen) {{
                 Py_Initialize();
                 np::initialize();
                 boost::python::def("{name}", {name});
             }}
-        """.format(name=node.name))
+        """.format(name=node.name,time_file=dir_name))
 
         return "\n".join(scope)
