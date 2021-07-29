@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from toydsl.driver.driver import computation
 from toydsl.frontend.language import Horizontal, Vertical, end, start
@@ -13,16 +14,16 @@ def otherfunc(out_field, in_field):
         with Horizontal[start : end - 1, start : end - 1]:
             in_field[1, 0, 0] = 2
         with Horizontal[start : end - 1, start:end]:
-            out_field = in_field[1, 0, 0] + 4*in_field[0,1,0]
+            out_field = in_field[1, 0, 0] + 5*in_field[0,1,0]
 
 
 def set_up_data():
     """
     Set up the input for the test example
     """
-    i = [0, 5]
-    j = [0, 5]
-    k = [0, 5]
+    i = [0, 50]
+    j = [0, 50]
+    k = [0, 50]
     shape = (i[-1], j[-1], k[-1])
     a = np.ones(shape)
     b = np.zeros(shape)
@@ -31,7 +32,10 @@ def set_up_data():
 
 if __name__ == "__main__":
     input, output, i, j, k = set_up_data()
-    otherfunc(output, input, i, j, k)
+    start = time.time_ns()
+    for ii in range(10):
+        otherfunc(output, input, i, j, k)
+    end = time.time_ns()
     # Using this inupt, we expect the output of b to be
     # [[2. 2. 2. 2. 0.]
     #  [2. 2. 2. 2. 0.]
@@ -39,3 +43,4 @@ if __name__ == "__main__":
     #  [2. 2. 2. 2. 0.]
     #  [1. 1. 1. 1. 0.]]
     print(output[:, :, 0].T)
+    print("{} seconds".format((end-start)/(10**9)))
