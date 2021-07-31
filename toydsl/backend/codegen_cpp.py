@@ -175,13 +175,13 @@ class CodeGenCpp(IRNodeVisitor):
         return vertical_loop
 
     def visit_HorizontalDomain(self, node: ir.HorizontalDomain) -> List[str]:
-        inner_loop = [create_horizontal_loop("j", node)]
+        inner_loop = [create_horizontal_loop("i", node)]
         inner_loop.append("{")
         for stmt in node.body:
             inner_loop.append(self.visit(stmt))
         inner_loop.append("}")
 
-        outer_loop = [create_horizontal_loop("i", node)]
+        outer_loop = [create_horizontal_loop("j", node)]
         outer_loop.append("{")
         for line in inner_loop:
             outer_loop.append(line)
@@ -201,10 +201,11 @@ class CodeGenCpp(IRNodeVisitor):
             using numpy_t = np::ndarray;
             using bounds_t = boost::python::list;
 
-            std::int64_t {name}({array_args}, {bounds}) {{
+            double {name}({array_args}, {bounds}) {{
+                const std::size_t num_runs = 1000;
+
                 const auto start_cycle = start_tsc();
 
-                const std::size_t num_runs = 1000;
                 for (std::size_t ii = 0; ii < num_runs; ii++){{
                     {converters}
 
@@ -230,7 +231,7 @@ class CodeGenCpp(IRNodeVisitor):
         scope.append("""
                 }}
 
-                return stop_tsc(start_cycle);
+                return (double) stop_tsc(start_cycle)/num_runs;
             }}
 
             BOOST_PYTHON_MODULE(dslgen) {{
