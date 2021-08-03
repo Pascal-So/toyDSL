@@ -1,12 +1,13 @@
 from __future__ import annotations
-
-import toydsl.ir.ir as ir
-import subprocess
-import shutil
+import importlib.util
 import os
 from pathlib import Path
+import shutil
+import subprocess
+from typing import Any
+
+import toydsl.ir.ir as ir
 from toydsl.ir.visitor import IRNodeVisitor
-import importlib.util
 
 def load_cpp_module(so_filename: Path):
     """
@@ -66,45 +67,36 @@ def setup_code_dir_cpp(code_dir: Path):
     shutil.copyfile(cpp_dir / ".clang-format", code_dir / ".clang-format")
 
 
-def offset_to_string(offset: ir.AccessOffset) -> str:
+def offset_to_string(offset: ir.AccessOffset, unroll_offset: int = 0) -> str:
     """
-    Converts the offset of a FieldAccess to a string with the proper indexing
+    Converts the offset of a FieldAccess to a 1-dimensional array access with the proper indexing
     """
-    return (
-        "[(idx_i + "
-        + str(offset.offsets[0])
-        + ") + (idx_j + "
-        + str(offset.offsets[1])
-        + ")*dim2 + (idx_k + "
-        + str(offset.offsets[2])
-        + ")*dim3]"
+    return "[(idx_i + {i}) + (idx_j + {j})*dim2 + (idx_k + {k})*dim3 + {unroll_offset}]".format(
+        i=offset.offsets[0],
+        j=offset.offsets[1],
+        k=offset.offsets[2],
+        unroll_offset=unroll_offset
     )
 
-def create_loop(loop_variable: str, extents: ir.AxisInterval) -> str:
+def create_loop_header(loop_variable: str, extents: List[str], stride: int = 1) -> str:
     assert loop_variable in ["i", "j", "k"]
 
+    return "for (std::size_t {var} = {start}; {var} <= {end} - {stride}; {var} += {stride})".format(
+        start=extents[0],
+        end=extents[1],
+        var="idx_{}".format(loop_variable),
+        stride=stride
+    )
+
+def create_extents(extents: ir.AxisInterval, loop_variable: str) -> List[str]:
     def create_offset(offset: ir.Offset):
         side = "start" if offset.level == ir.LevelMarker.START else "end"
         return "{}_{} + {}".format(side, loop_variable, offset.offset)
 
-    return "for (std::size_t {var} = {start}; {var} < {end}; ++{var})".format(
-        start=create_offset(extents.start),
-        end=create_offset(extents.end),
-        var="idx_{}".format(loop_variable)
-    )
-
-def create_vertical_loop(vertical_domain: ir.VerticalDomain) -> str:
-    return create_loop("k", vertical_domain.extents)
-
-def create_horizontal_loop(
-    loop_variable: str, horizontal_domain: ir.HorizontalDomain
-) -> str:
-    assert loop_variable in ["i", "j"]
-
-    index = 0 if loop_variable == "i" else 1
-    extents = horizontal_domain.extents[index]
-
-    return create_loop(loop_variable, extents)
+    return [
+        create_offset(extents.start),
+        create_offset(extents.end)
+    ]
 
 def generate_converter(arg_name: str):
     return "auto {a} = reinterpret_cast<scalar_t*>({a}_np.get_data());".format(a=arg_name)
@@ -113,6 +105,14 @@ class CodeGenCpp(IRNodeVisitor):
     """
     The code-generation module that traverses the IR and generates code form it.
     """
+    def __init__(self):
+        # The private variables here are properties that count for certain subtrees of the AST.
+        # Any visitor can modify them to influence all the visitors in the subtree below
+        # itself, but note that the setter of the variable is responsible to return it to
+        # its previous value when the subtree has been processed.
+
+        self._repetitions = 1 # how many times should statements be executed
+        self._unroll_offset = 0 # indexes the repeated statements in an unrolled loop
 
     @classmethod
     def apply(cls: CodeGen, ir: ir.IR) -> str:
@@ -123,7 +123,7 @@ class CodeGenCpp(IRNodeVisitor):
         return codegen.visit(ir)
 
     # ---- Visitor handlers ----
-    def generic_visit(self, node: ir.Node, **kwargs) -> None:
+    def generic_visit(self, node: Any, **kwargs) -> None:
         """
         Each visit needs to do something in code-generation, there can't be a default visit
         """
@@ -133,7 +133,7 @@ class CodeGenCpp(IRNodeVisitor):
         return node.value
 
     def visit_FieldAccessExpr(self, node: ir.FieldAccessExpr) -> str:
-        return node.name + offset_to_string(node.offset)
+        return node.name + offset_to_string(node.offset, self._unroll_offset)
 
     def visit_AssignmentStmt(self, node: ir.AssignmentStmt) -> str:
         left = self.visit(node.left)
@@ -164,7 +164,7 @@ class CodeGenCpp(IRNodeVisitor):
         return binaryOp_str
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
-        vertical_loop = [create_vertical_loop(node)]
+        vertical_loop = [create_loop_header("k", create_extents(node.extents, "k"))]
         vertical_loop.append("{")
         for stmt in node.body:
             lines_of_code = self.visit(stmt)
@@ -175,19 +175,54 @@ class CodeGenCpp(IRNodeVisitor):
         return vertical_loop
 
     def visit_HorizontalDomain(self, node: ir.HorizontalDomain) -> List[str]:
-        inner_loop = [create_horizontal_loop("i", node)]
-        inner_loop.append("{")
-        for stmt in node.body:
-            inner_loop.append(self.visit(stmt))
-        inner_loop.append("}")
+        unroll_factor = 4
 
-        outer_loop = [create_horizontal_loop("j", node)]
+        inner_extents = create_extents(node.extents[0], "i")
+        inner_loop = []
+
+        self._repetitions *= unroll_factor
+        inner_loop.append(create_loop_header("i", inner_extents, self._repetitions))
+        inner_loop.append("{")
+        inner_loop.extend(self.visit(node.body))
+        inner_loop.append("}")
+        self._repetitions //= unroll_factor
+
+        if unroll_factor > 1:
+            inner_extents[0] = "{e} - ({e} - ({s})) % {r}".format(
+                s=inner_extents[0],
+                e=inner_extents[1],
+                r=unroll_factor
+            )
+
+            inner_loop.append(create_loop_header("i", inner_extents, self._repetitions))
+            inner_loop.append("{")
+            inner_loop.extend(self.visit(node.body))
+            inner_loop.append("}")
+
+        outer_loop = [create_loop_header("j", create_extents(node.extents[1], "j"))]
         outer_loop.append("{")
         for line in inner_loop:
             outer_loop.append(line)
         outer_loop.append("}")
 
         return outer_loop
+
+    def visit_list_of_Stmt(self, nodes: List[ir.Stmt]) -> List[str]:
+        res = []
+
+        previous_unroll_offset = self._unroll_offset
+        reps = self._repetitions
+        self._repetitions = 1
+
+        for i in range(reps):
+            self._unroll_offset = i
+            for stmt in nodes:
+                res.append(self.visit(stmt))
+
+        self._repetitions = reps
+        self._unroll_offset = previous_unroll_offset
+
+        return res
 
     def visit_IR(self, node: ir.IR) -> str:
         scope = ["""#include <boost/python.hpp>
