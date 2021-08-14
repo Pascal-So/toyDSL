@@ -1,0 +1,92 @@
+% IEEE standard conference template; to be used with:
+%   spconf.sty  - LaTeX style file, and
+%   IEEEbib.bst - IEEE bibliography style file.
+% --------------------------------------------------------------------------
+
+\documentclass{article}
+\usepackage{spconf,amsmath,amssymb,graphicx}
+
+% bold paragraph titles
+\newcommand{\mypar}[1]{{\bf #1.}}
+
+\title{Toy DSL for Weather and Climate Simulations}
+
+\name{Clément Thorens, Josephine Leuenberger, Pascal Sommer \thanks{The authors thank Markus P\"uschel and Jelena Kovacevic for provding this \LaTeX{} template.}}
+\address{High Performance Computing for Weather and Climate \\ ETH Zurich, Switzerland}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Numerical computations in weather and climate simulations often make use of
+stencil calculations. While there are several well-known techniques for
+optimizing stencil calculations, it can be tedious to always manually apply
+them when writing such programs. We can exploit the constrained nature of
+stencil calculations by creating a domain specific language (DSL) that allows
+the user to generate efficient code from a simple description of their intent.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+asdf
+
+\mypar{Motivation}
+asdf 
+
+\mypar{Contribution}
+asdf
+
+\mypar{Related work}
+asdf
+
+
+\section{Experimental Results}\label{sec:exp}
+
+asdf
+
+
+\section{Conclusions}
+
+asdf  \cite{Higham:98}.
+
+Fig.~\ref{fftperf} is an example plot that I used in a lecture. Note that the fontsize in the plot should not be any smaller. On the other hand it is also a good rule that the font size in the plot is not larger than the one in the caption (otherwise it looks ugly).
+
+% \begin{figure}\centering
+%   \includegraphics[scale=0.33]{dft-performance.pdf}
+%   \caption{Performance of four single-precision implementations of the
+%   discrete Fourier transform. The operations count is roughly the
+%   same. {\em The labels in this plot are about the smallest you should go.}\label{fftperf}}
+% \end{figure}
+
+
+\section{Contributions of Team Members (Mandatory)}
+
+Include only 
+\begin{itemize}
+	\item What relates to optimizing your chosen algorithm / application. This means writing actual code for optimization or for analysis.
+	\item What you did before the submission of the presentation.
+\end{itemize}
+Do not include
+\begin{itemize}
+	\item Work on infrastructure and testing.
+	\item Work done after the presentation took place.
+\end{itemize}
+
+Example and structure follows.
+
+\mypar{Marylin} Focused on non-SIMD optimization for the variant 2 of the algorithm. Cache optimization, basic block optimizations, small generator for the innermost kernel (Section 3.2). Roofline plot. Worked with Cary and Jane on the SIMD optimization of variant 1, in particular implemented the bit-masking trick discussed.
+
+\mypar{Cary} ...
+
+\mypar{Gregory} ...
+
+\mypar{Jane} ...
+
+% References should be produced using the bibtex program from suitable
+% BiBTeX files (here: bibl_conf). The IEEEbib.bst bibliography
+% style file from IEEE produces unsorted bibliography list.
+% -------------------------------------------------------------------------
+\bibliographystyle{IEEEbib}
+\bibliography{bibl_conf}
+
+\end{document}
