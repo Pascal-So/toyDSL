@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Any
+from typing import Any, List
 
 import toydsl.ir.ir as ir
 from toydsl.ir.visitor import IRNodeVisitor
@@ -115,7 +115,7 @@ class CodeGenCpp(IRNodeVisitor):
         self._unroll_offset = 0 # indexes the repeated statements in an unrolled loop
 
     @classmethod
-    def apply(cls: CodeGen, ir: ir.IR) -> str:
+    def apply(cls: CodeGenCpp, ir: ir.IR) -> str:
         """
         Entrypoint for the code generation, applying this to an IR returns a formatted function for that IR
         """
