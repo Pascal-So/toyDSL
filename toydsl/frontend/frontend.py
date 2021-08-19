@@ -80,10 +80,20 @@ class LanguageParser(ast.NodeVisitor):
         return ir.FieldAccessExpr(name=symbol, offset=ir.AccessOffset(0, 0, 0))
 
     def visit_Subscript(self, node: ast.Subscript) -> ir.FieldAccessExpr:
+        node_value = []
+        for i in range(3):
+            if(isinstance(node.slice.elts[i],ast.Constant)):
+                node_value.append(node.slice.elts[i].value)
+            else:
+                if isinstance(node.slice.elts[i].op,ast.USub):
+                    out = -1*node.slice.elts[i].operand.value
+                else:
+                    out = node.slice.elts[i].operand.value
+                node_value.append(out)
         offset = ir.AccessOffset(
-            node.slice.elts[0].value,
-            node.slice.elts[1].value,
-            node.slice.elts[2].value,
+            node_value[0],
+            node_value[1],
+            node_value[2],
         )
         return ir.FieldAccessExpr(name=node.value.id, offset=offset)
 
@@ -139,6 +149,13 @@ class LanguageParser(ast.NodeVisitor):
         else:
             op_string = ""
         return ir.BinaryOp(left=lhs,right=rhs,operator=op_string)
+
+    def visit_UnaryOp(self,node: ast.UnaryOp) -> ir.LiteralExpr:
+        if isinstance(node.op,ast.USub):
+            out = "-" + str(node.operand.value)
+        else:
+            out = str(node.operand.value)
+        return ir.LiteralExpr(value=out)
 
 
 def parse(function):
