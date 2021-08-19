@@ -5,7 +5,7 @@ Requirements:
 * cmake >= 3.12
 * make
 * python >= 3.8
-* boost 1.68
+* boost >= 1.68
 * clang-format (optional)
 
 ## Building / Running
@@ -21,4 +21,13 @@ pip install numpy black
 pip install .
 
 PYTHONPATH=$PYTHONPATH:$PWD python example/basic_function.py
+```
+
+## Running on CSCS
+
+Load up-to-date versions of our dependencies:
+
+```bash
+module load CMake/3.14.5
+module load Boost/1.70.0-CrayGNU-20.11-python3
 ```
