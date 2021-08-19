@@ -81,7 +81,7 @@ class LanguageParser(ast.NodeVisitor):
         return ir.FieldAccessExpr(name=symbol, offset=ir.AccessOffset(0, 0, 0))
 
     def visit_Subscript(self, node: ast.Subscript) -> ir.FieldAccessExpr:
-        elts = node.slice.elts if sys.version_info >= (3,9,0) else node.slice.values.elts
+        elts = node.slice.elts if sys.version_info >= (3,9,0) else node.slice.value.elts
         node_value = []
         for i in range(3):
             if(isinstance(elts[i],ast.Constant)):
