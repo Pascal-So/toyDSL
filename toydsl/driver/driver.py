@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 
 from toydsl.backend.codegen import CodeGen, ModuleGen
-from toydsl.backend.codegen_cpp import CodeGenCpp, format_cpp, compile_cpp, setup_code_dir_cpp, load_cpp_module
+from toydsl.backend.codegen_cpp import CodeGenCpp, format_cpp, compile_cpp, load_cpp_module
 from toydsl.frontend.frontend import parse
 
 
@@ -39,15 +39,16 @@ def driver_cpp(function, hash: str, cache_dir: Path):
 
         start_time = time.perf_counter()
 
-        setup_code_dir_cpp(code_dir)
+        cmake_dir = Path(__file__).parent.parent / "cpp"
 
         cpp_filename = code_dir / "dslgen.cpp"
 
+        os.makedirs(code_dir, exist_ok=True)
         with open(cpp_filename, "w") as f:
             f.write(code)
 
-        format_cpp(cpp_filename)
-        compile_cpp(code_dir)
+        format_cpp(cpp_filename, cmake_dir)
+        compile_cpp(code_dir, cmake_dir)
 
         end_time = time.perf_counter()
         print("\n\nGenerated, formatted, and compiled C++ code in {:.2f} seconds.".format(end_time - start_time), file=sys.stderr)

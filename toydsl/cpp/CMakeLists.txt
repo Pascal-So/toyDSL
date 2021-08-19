@@ -16,26 +16,18 @@ endif()
 find_package(Python3 REQUIRED COMPONENTS Development)
 find_package(Boost 1.68 REQUIRED COMPONENTS python numpy)
 
-# include(FetchContent)
-# FetchContent_Declare(eigen3
-#     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-#     GIT_SHALLOW TRUE
-# )
-# FetchContent_GetProperties(eigen3)
-# if(NOT eigen3_POPULATED)
-#     FetchContent_Populate(eigen3)
-# endif()
-# add_library(eigen3 INTERFACE)
-# target_include_directories(eigen3 INTERFACE "${eigen3_SOURCE_DIR}")
+add_library(tsc INTERFACE)
+target_include_directories(tsc INTERFACE "${CMAKE_CURRENT_LIST_DIR}/include")
 
+set(SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE FILEPATH "directory where 'dslgen.cpp' is located")
 
 set(CMAKE_SHARED_MODULE_PREFIX "")
-add_library(dslgen MODULE dslgen.cpp)
+add_library(dslgen MODULE "${SOURCE_DIR}/dslgen.cpp")
 
 target_link_libraries(dslgen
     Python3::Module
     Python3::Python
     Boost::python
     Boost::numpy
-    # eigen3
+    tsc
 )

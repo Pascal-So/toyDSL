@@ -21,7 +21,7 @@ def load_cpp_module(so_filename: Path):
     spec.loader.exec_module(mod)
     return mod
 
-def format_cpp(cpp_filename: Path):
+def format_cpp(cpp_filename: Path, cmake_dir: Path):
     """
     Format the generated C++ source code to make it prettier to look at.
 
@@ -31,9 +31,13 @@ def format_cpp(cpp_filename: Path):
 
     clang_format_installed = shutil.which("clang-format") is not None
     if clang_format_installed:
-        subprocess.call(["clang-format", "-i", cpp_filename])
+        subprocess.call([
+            "clang-format",
+            "-i",
+            cpp_filename.resolve()
+        ], cwd=cmake_dir)
 
-def compile_cpp(code_dir: Path, build_type: str = "Release"):
+def compile_cpp(code_dir: Path, cmake_dir: Path, build_type: str = "Release"):
     """
     Compile the generated C++ code using CMake.
     """
@@ -41,29 +45,19 @@ def compile_cpp(code_dir: Path, build_type: str = "Release"):
     build_dir = code_dir / "build"
     os.makedirs(build_dir, exist_ok=True)
 
-    ret = subprocess.call(["cmake", "..", "-DCMAKE_BUILD_TYPE={}".format(build_type)], cwd=build_dir)
+    ret = subprocess.call([
+        "cmake",
+        cmake_dir.resolve(),
+        "-DCMAKE_BUILD_TYPE={}".format(build_type),
+        "-DSOURCE_DIR={}".format(code_dir.resolve()),
+        "-B{}".format(build_dir.resolve())
+    ], cwd=build_dir)
     if ret != 0:
         raise Exception("CMake failed. build directory: {dir}. return code: {ret}. build type: {build_type}".format(dir=build_dir, ret=ret, build_type=build_type))
 
     ret = subprocess.call(["make", "-j", "VERBOSE=1"], cwd=build_dir)
     if ret != 0:
         raise Exception("make failed. build directory: {dir}. return code: {ret}".format(dir=build_dir, ret=ret))
-
-def setup_code_dir_cpp(code_dir: Path):
-    """
-    Create the directory where the generated C++ code should end up
-    and populate it with the required files.
-
-    The required files are copied from the `cpp` directory adjacent to
-    this `backend` directory.
-    """
-    os.makedirs(code_dir, exist_ok=True)
-
-    backend_dir = Path(__file__).parent
-    cpp_dir = backend_dir.parent / "cpp"
-    shutil.copyfile(cpp_dir / "CMakeLists.txt", code_dir / "CMakeLists.txt")
-    shutil.copyfile(cpp_dir / ".clang-format", code_dir / ".clang-format")
-
 
 def offset_to_string(offset: ir.AccessOffset, unroll_offset: int = 0) -> str:
     """
@@ -225,8 +219,7 @@ class CodeGenCpp(IRNodeVisitor):
     def visit_IR(self, node: ir.IR) -> str:
         scope = ["""#include <boost/python.hpp>
             #include <boost/python/numpy.hpp>
-
-            #include "../../include/tsc_x86.h"
+            #include <tsc_x86.h>
 
             namespace np = boost::python::numpy;
 
