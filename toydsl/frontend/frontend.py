@@ -1,5 +1,6 @@
 import ast
 import inspect
+import sys
 from typing import List
 
 import toydsl.ir.ir as ir
@@ -80,15 +81,16 @@ class LanguageParser(ast.NodeVisitor):
         return ir.FieldAccessExpr(name=symbol, offset=ir.AccessOffset(0, 0, 0))
 
     def visit_Subscript(self, node: ast.Subscript) -> ir.FieldAccessExpr:
+        elts = node.slice.elts if sys.version_info >= (3,9,0) else node.slice.values.elts
         node_value = []
         for i in range(3):
-            if(isinstance(node.slice.elts[i],ast.Constant)):
-                node_value.append(node.slice.elts[i].value)
+            if(isinstance(elts[i],ast.Constant)):
+                node_value.append(elts[i].value)
             else:
-                if isinstance(node.slice.elts[i].op,ast.USub):
-                    out = -1*node.slice.elts[i].operand.value
+                if isinstance(elts[i].op,ast.USub):
+                    out = -1*elts[i].operand.value
                 else:
-                    out = node.slice.elts[i].operand.value
+                    out = elts[i].operand.value
                 node_value.append(out)
         offset = ir.AccessOffset(
             node_value[0],

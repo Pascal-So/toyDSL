@@ -57,8 +57,6 @@ def setup_code_dir_cpp(code_dir: Path):
     The required files are copied from the `cpp` directory adjacent to
     this `backend` directory.
     """
-    global dir_name
-    dir_name = str(code_dir).split("/")[1]
     os.makedirs(code_dir, exist_ok=True)
 
     backend_dir = Path(__file__).parent

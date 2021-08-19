@@ -4,7 +4,7 @@ Requirements:
 
 * cmake >= 3.12
 * make
-* python 3.9
+* python >= 3.8
 * boost 1.68
 * clang-format (optional)
 
