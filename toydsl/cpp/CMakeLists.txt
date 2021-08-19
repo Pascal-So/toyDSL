@@ -25,7 +25,6 @@ set(CMAKE_SHARED_MODULE_PREFIX "")
 add_library(dslgen MODULE "${SOURCE_DIR}/dslgen.cpp")
 
 target_link_libraries(dslgen
-    Python3::Module
     Python3::Python
     Boost::python
     Boost::numpy
