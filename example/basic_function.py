@@ -2,6 +2,9 @@ import numpy as np
 import time
 
 from toydsl.driver.driver import computation
+
+# This import is not needed. Horizontal etc. are not used by the python interpretor, we
+# just leave the import here so that VS Code is happy. :)
 from toydsl.frontend.language import Horizontal, Vertical, end, start
 
 
