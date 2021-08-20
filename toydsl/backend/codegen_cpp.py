@@ -31,11 +31,14 @@ def format_cpp(cpp_filename: Path, cmake_dir: Path):
 
     clang_format_installed = shutil.which("clang-format") is not None
     if clang_format_installed:
+        clang_format_config = open(cmake_dir / '.clang-format').read()
+
         subprocess.call([
             "clang-format",
+            "-style={{{}}}".format(', '.join(clang_format_config.splitlines())),
             "-i",
-            cpp_filename.resolve()
-        ], cwd=cmake_dir)
+            cpp_filename.resolve(),
+        ])
 
 def compile_cpp(code_dir: Path, cmake_dir: Path, build_type: str = "Release"):
     """
@@ -105,6 +108,7 @@ class CodeGenCpp(IRNodeVisitor):
 
         self._repetitions = 1 # how many times should statements be executed
         self._unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+        self._vectorize = True # use avx2 instructions
 
     @classmethod
     def apply(cls: CodeGenCpp, ir: ir.IR) -> str:
@@ -122,17 +126,43 @@ class CodeGenCpp(IRNodeVisitor):
         raise RuntimeError("Invalid IR node: {}".format(node))
 
     def visit_LiteralExpr(self, node: ir.LiteralExpr) -> str:
-        return node.value
+        # instruction: __m256d _mm256_set_pd (double e3, double e2, double e1, double e0)
+        if self._vectorize:
+            return "_mm256_set1_pd({d})".format(d=node.value)
+        else:
+            return node.value
 
     def visit_FieldAccessExpr(self, node: ir.FieldAccessExpr) -> str:
-        return node.name + offset_to_string(node.offset, self._unroll_offset)
+        array_access = node.name + offset_to_string(node.offset, self._unroll_offset)
+        if self._vectorize:
+            # instruction: __m256d _mm256_loadu_pd (double const * mem_addr)
+            return "_mm256_loadu_pd(&{})".format(array_access)
+        else:
+            return array_access
 
     def visit_AssignmentStmt(self, node: ir.AssignmentStmt) -> str:
-        left = self.visit(node.left)
         right = self.visit(node.right)
+
+        if self._vectorize:
+            self._vectorize = False
+            # On the left side we only want to generate the normal array access
+            # so that we can then take the address of it when using it as the
+            # destination in the stream function. We thus turn off `_vectorize`
+            # in order to not generate a load instruction.
+            left = self.visit(node.left)
+            self._vectorize = True
+
+            # instruction: void _mm256_storeu_pd (double * mem_addr, __m256d a)
+            return "_mm256_storeu_pd(&{}, {});".format(left, right)
+        else:
+            left = self.visit(node.left)
         return "{} = {};".format(left, right)
 
     def visit_BinaryOp(self, node: ir.BinaryOp) -> str: # TODO : Do not strip out the brackets
+        # We actually don't have to add the avx2 intrinsics
+        # for binary operators here because the arithmetic
+        # operators are apparently overloaded for `__m256d`.
+
         assert(node.operator),"Unknown operator"
         # Keep the commented lines bellow, it might be useful later
         # if node.operator == "+":
@@ -179,6 +209,7 @@ class CodeGenCpp(IRNodeVisitor):
         inner_loop.append("}")
         self._repetitions //= unroll_factor
 
+        # Generate instructions for the rest that was not evenly divisible by the unroll factor
         if unroll_factor > 1:
             inner_extents[0] = "{e} - ({e} - ({s})) % {r}".format(
                 s=inner_extents[0],
@@ -202,51 +233,59 @@ class CodeGenCpp(IRNodeVisitor):
     def visit_list_of_Stmt(self, nodes: List[ir.Stmt]) -> List[str]:
         res = []
 
+        # Make sure to adjust this if we change the instrucions or
+        # the datatype used.
+        vectorize_width = 4
+
+        # The `previous_*` variables are used to remember the value
+        # of some subtree properties so that we can change the
+        # property for the current subtree and then change it back
+        # to the previous value.
+
         previous_unroll_offset = self._unroll_offset
-        reps = self._repetitions
+        previous_repetitions = self._repetitions
         self._repetitions = 1
 
-        for i in range(reps):
-            self._unroll_offset = i
+        if self._vectorize and previous_repetitions % vectorize_width == 0:
+            for i in range(previous_repetitions // vectorize_width):
+                self._unroll_offset = i * vectorize_width
+                for stmt in nodes:
+                    res.append(self.visit(stmt))
+        else:
+            previous_vectorize = self._vectorize
+            self._vectorize = False
+
+            for i in range(previous_repetitions):
+                self._unroll_offset = i
             for stmt in nodes:
                 res.append(self.visit(stmt))
 
-        self._repetitions = reps
+            self._vectorize = previous_vectorize
+
+        self._repetitions = previous_repetitions
         self._unroll_offset = previous_unroll_offset
 
         return res
 
     def visit_IR(self, node: ir.IR) -> str:
-        scope = ["""#include <boost/python.hpp>
-            #include <boost/python/numpy.hpp>
+        scope = [""" #include <common_python.hpp>
+            #include <immintrin.h>
             #include <tsc_x86.h>
-
-            namespace np = boost::python::numpy;
-
-            using scalar_t = double;
-            using numpy_t = np::ndarray;
-            using bounds_t = boost::python::list;
 
             double {name}({array_args}, {bounds}) {{
                 const std::size_t num_runs = 1000;
 
-                const auto start_cycle = start_tsc();
+                const auto [start_i, end_i, start_j, end_j, start_k, end_k] = get_bounds(i, j, k);
+                const std::size_t dim2 = (end_i - start_i);
+                const std::size_t dim3 = dim2 * (end_j - start_j);
 
-                for (std::size_t ii = 0; ii < num_runs; ii++){{
                     {converters}
 
-                    const std::size_t start_i = boost::python::extract<std::size_t>(i[0]);
-                    const std::size_t end_i = boost::python::extract<std::size_t>(i[1]);
-                    const std::size_t start_j = boost::python::extract<std::size_t>(j[0]);
-                    const std::size_t end_j = boost::python::extract<std::size_t>(j[1]);
-                    const std::size_t start_k = boost::python::extract<std::size_t>(k[0]);
-                    const std::size_t end_k = boost::python::extract<std::size_t>(k[1]);
-
-                    const std::size_t dim2 = (end_i - start_i);
-                    const std::size_t dim3 = dim2 * (end_j - start_j);
+                const auto start_cycle = start_tsc();
+                for (std::size_t ii = 0; ii < num_runs; ii++){{
         """.format(
             name=node.name,
-            array_args=", ".join(["numpy_t &{}_np".format(arg) for arg in node.api_signature]),
+            array_args=", ".join(["array_t &{}_np".format(arg) for arg in node.api_signature]),
             bounds=", ".join(["const bounds_t &{}".format(axis) for axis in ["i", "j", "k"]]),
             converters="\n".join(map(generate_converter, node.api_signature))
         )]
