@@ -96,6 +96,41 @@ def create_extents(extents: ir.AxisInterval, loop_variable: str) -> List[str]:
 def generate_converter(arg_name: str):
     return "auto {a} = reinterpret_cast<scalar_t*>({a}_np.get_data());".format(a=arg_name)
 
+def check_openmp_private(node: ir.IR):
+    written = set()
+    read = set()
+    for vert in node.body:
+        if isinstance(vert, ir.VerticalDomain):
+            for hori in vert.body:
+                if isinstance(hori, ir.HorizontalDomain):
+                    for stmt in hori.body:
+                        if isinstance(stmt, ir.AssignmentStmt):
+                            if isinstance(stmt.left,ir.FieldAccessExpr):
+                                written.add(stmt.left.name)
+                            if isinstance(stmt.left,ir.BinaryOp):
+                                written = written.union(check_binop(stmt.left))
+                            if isinstance(stmt.right,ir.FieldAccessExpr):
+                                read.add(stmt.right.name)
+                            if isinstance(stmt.right,ir.BinaryOp):
+                                read = read.union(check_binop(stmt.right))
+
+    global private_var
+    private_var = (written&read)
+    global public_var
+    public_var = set(node.api_signature) - private_var
+
+def check_binop(node: ir.BinaryOp):
+    names = set()
+    if isinstance(node.left,ir.FieldAccessExpr):
+        names.add(node.left.name)
+    if isinstance(node.right,ir.FieldAccessExpr):
+        names.add(node.right.name)
+    if isinstance(node.left,ir.BinaryOp):
+        names = names.union(check_binop(node.left))
+    if isinstance(node.right,ir.BinaryOp):
+        names = names.union(check_binop(node.right))
+    return names
+
 class CodeGenCpp(IRNodeVisitor):
     """
     The code-generation module that traverses the IR and generates code form it.
@@ -186,7 +221,17 @@ class CodeGenCpp(IRNodeVisitor):
         return binaryOp_str
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
-        vertical_loop = [create_loop_header("k", create_extents(node.extents, "k"))]
+        if(len(private_var)!=0 and len(public_var)!=0):
+            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public}) firstprivate({private})".format(public=", ".join(public_var),private=", ".join(private_var))
+        elif (len(private_var)==0):
+            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public})".format(public=", ".join(public_var))
+        elif (len(public_var)==0):
+            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i) firstprivate({private})".format(private=", ".join(private_var))
+        else:
+            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i)"
+
+        vertical_loop = [pragma_string]
+        vertical_loop.append(create_loop_header("k", create_extents(node.extents, "k")))
         vertical_loop.append("{")
         for stmt in node.body:
             lines_of_code = self.visit(stmt)
@@ -268,6 +313,7 @@ class CodeGenCpp(IRNodeVisitor):
         return res
 
     def visit_IR(self, node: ir.IR) -> str:
+        check_openmp_private(node)
         scope = [""" #include <common_python.hpp>
             #include <immintrin.h>
             #include <tsc_x86.h>
