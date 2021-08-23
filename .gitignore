@@ -11,3 +11,6 @@ venv/
 
 _build
 build/
+
+# png
+*.png
