@@ -144,6 +144,7 @@ class CodeGenCpp(IRNodeVisitor):
         self._repetitions = 1 # how many times should statements be executed
         self._unroll_offset = 0 # indexes the repeated statements in an unrolled loop
         self._vectorize = True # use avx2 instructions
+        self._openmp = True # use openmp
 
     @classmethod
     def apply(cls: CodeGenCpp, ir: ir.IR) -> str:
@@ -221,16 +222,19 @@ class CodeGenCpp(IRNodeVisitor):
         return binaryOp_str
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
-        if(len(private_var)!=0 and len(public_var)!=0):
-            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public}) firstprivate({private})".format(public=", ".join(public_var),private=", ".join(private_var))
-        elif (len(private_var)==0):
-            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public})".format(public=", ".join(public_var))
-        elif (len(public_var)==0):
-            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i) firstprivate({private})".format(private=", ".join(private_var))
-        else:
-            pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i)"
+        if self._openmp:
+            if(len(private_var)!=0 and len(public_var)!=0):
+                pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public}) firstprivate({private})".format(public=", ".join(public_var),private=", ".join(private_var))
+            elif (len(private_var)==0):
+                pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i,{public})".format(public=", ".join(public_var))
+            elif (len(public_var)==0):
+                pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i) firstprivate({private})".format(private=", ".join(private_var))
+            else:
+                pragma_string = "#pragma omp parallel for default(none) shared(dim2,dim3,start_k,start_j,start_i,end_k,end_j,end_i)"
 
-        vertical_loop = [pragma_string]
+            vertical_loop = [pragma_string]
+        else:
+            vertical_loop = []
         vertical_loop.append(create_loop_header("k", create_extents(node.extents, "k")))
         vertical_loop.append("{")
         for stmt in node.body:
@@ -313,7 +317,9 @@ class CodeGenCpp(IRNodeVisitor):
         return res
 
     def visit_IR(self, node: ir.IR) -> str:
-        check_openmp_private(node)
+        if self._openmp:
+            check_openmp_private(node)
+
         scope = [""" #include <common_python.hpp>
             #include <immintrin.h>
             #include <tsc_x86.h>
