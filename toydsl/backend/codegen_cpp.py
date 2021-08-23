@@ -332,7 +332,7 @@ class CodeGenCpp(IRNodeVisitor):
         """.format(
             name=node.name,
             array_args=", ".join(["array_t &{}_np".format(arg) for arg in node.api_signature]),
-            bounds=", ".join(["const bounds_t &{}".format(axis) for axis in ["i", "j", "k"]]),
+            bounds=", ".join(["const bounds_t &{}".format(axis) for axis in ["k", "j", "i"]]),
             converters="\n".join(map(generate_converter, node.api_signature))
         )]
 
