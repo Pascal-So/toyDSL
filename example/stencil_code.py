@@ -7,18 +7,29 @@ import matplotlib.pyplot as plt
 
 
 @computation
-def otherfunc(out_field, in_field, tmp1_field, tmp2_field):
+def copy_stencil(out_field, in_field):
+    with Vertical[start:end]:
+        with Horizontal[start : end, start: end]:
+            out_field[0, 0, 0] = in_field[0, 0, 0]
+
+
+@computation
+def vertical_blur(out_field, in_field):
+    with Vertical[start+1:end-1]:
+        with Horizontal[start : end, start: end]:
+            out_field[0, 0, 0] = (in_field[0, 0, 1] + in_field[0, 0, 0] + in_field[0, 0, -1]) / 3
+
+
+@computation
+def lapoflap(out_field, in_field, tmp1_field):
     """
-    A basic test of a funcction exercising the patterns of the toyDSL language.
+    out = in - 0.03 * laplace of laplace
     """
     with Vertical[start:end]:
         with Horizontal[start+1 : end-1, start+1: end-1]:
             tmp1_field[0, 0, 0] = -4.0 * in_field[0,0,0] + in_field[-1,0,0] + in_field[1,0,0] + in_field[0,-1,0] + in_field[0,1,0]
         with Horizontal[start+1 : end-1, start+1: end-1]:
-            tmp2_field[0, 0, 0] = -4.0 * tmp1_field[0,0,0] + tmp1_field[-1,0,0] + tmp1_field[1,0,0] + tmp1_field[0,-1,0] + tmp1_field[0,1,0]
-            out_field[0, 0, 0] = in_field[0, 0, 0] - 0.03 * tmp2_field[0, 0, 0]
-
-
+            out_field[0, 0, 0] = in_field[0, 0, 0] - 0.03 * (-4.0 * tmp1_field[0,0,0] + tmp1_field[-1,0,0] + tmp1_field[1,0,0] + tmp1_field[0,-1,0] + tmp1_field[0,1,0])
 
 def set_up_data():
     """
@@ -50,7 +61,7 @@ if __name__ == "__main__":
     cpp_times = []
     start = time.time_ns()
     for _ in range(num_runs):
-        cpp_time = otherfunc(output, input,tmp1,tmp2, i, j, k)
+        cpp_time = copy_stencil(output, input,tmp1,tmp2, i, j, k)
         input = output
         cpp_times.append(cpp_time)
     end = time.time_ns()
@@ -68,5 +79,5 @@ if __name__ == "__main__":
     plt.close()
 
 
-    print("Called otherfunc {} times in {} seconds".format(num_runs, (end-start)/(10**9)))
-    print("Measured times inside otherfunc {} cycles".format(np.mean(cpp_times)))
+    print("Called DSL function {} times in {} seconds".format(num_runs, (end-start)/(10**9)))
+    print("Measured times inside DSL function {} cycles".format(np.mean(cpp_times)))
