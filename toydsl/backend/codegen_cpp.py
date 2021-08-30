@@ -218,7 +218,7 @@ class CodeGenCpp(IRNodeVisitor):
         if node.operator == "**":
             binaryOp_str = "pow("+self.visit(node.left) + "," + self.visit(node.right) + ")"
         else:
-            binaryOp_str = self.visit(node.left) + node.operator + self.visit(node.right)
+            binaryOp_str = "(" + self.visit(node.left) + node.operator + self.visit(node.right) + ")"
         return binaryOp_str
 
     def visit_VerticalDomain(self, node: ir.VerticalDomain) -> List[str]:
