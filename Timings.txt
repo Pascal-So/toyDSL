@@ -1,0 +1,176 @@
+* Python
+* C++ ohni unrolling etc
+* C++ unroll 4
+* C++ mit vektor operatione
+* C++ mit openmp
+
+
+
+Timings:
+1.)
+unroll_factor = 1
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = False # use avx2 instructions
+openmp = False # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy_stencil:
+Called DSL function 256 times in 138.156145648 seconds
+Measured times inside DSL function 1403132.7093242188 cycles
+-->vertical blur:
+Called DSL function 256 times in 604.525416697 seconds
+Measured times inside DSL function 6139679.0411992185 cycles
+-->lapoflap
+Called DSL function 256 times in 660.082927219 seconds
+Measured times inside DSL function 6703931.562492187 cycles
+
+2.)
+unroll_factor = 4
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = False # use avx2 instructions
+openmp = False # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy_stencil:
+Called DSL function 256 times in 93.684044494 seconds
+Measured times inside DSL function 951463.3403671875 cycles
+?At this point I had to restart server?
+-->vertical_blur
+Called DSL function 256 times in 200.836122129 seconds
+Measured times inside DSL function 2039723.4298515625 cycles
+-->lapoflap
+[[0. 0. 0. ... 0. 0. 0.]
+ [0. 0. 0. ... 0. 0. 0.]
+ [0. 0. 0. ... 0. 0. 0.]
+ ...
+ [0. 0. 0. ... 0. 0. 0.]
+ [0. 0. 0. ... 0. 0. 0.]
+ [0. 0. 0. ... 0. 0. 0.]]
+Called DSL function 256 times in 344.995356794 seconds
+Measured times inside DSL function 3503836.0538359378 cycles
+-->copy_stencil
+Called DSL function 256 times in 93.406482238 seconds
+Measured times inside DSL function 948645.5598320313 cycles
+
+3.)
+unroll_factor = 4
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = True # use avx2 instructions
+openmp = False # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy_stencil
+Called DSL function 256 times in 90.67419814 seconds
+Measured times inside DSL function 920896.4504609376 cycles
+?At this point I had to restart server
+-->vertical blur
+Called DSL function 256 times in 331.794852993 seconds
+Measured times inside DSL function 3369769.5265195314 cycles
+-->lapoflap
+Called DSL function 256 times in 375.869755695 seconds
+Measured times inside DSL function 3817401.741617188 cycles
+-->copy_stencil
+Called DSL function 256 times in 94.773355536 seconds
+Measured times inside DSL function 962527.0266289063 cycles
+
+4.)
+unroll_factor = 4
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = True # use avx2 instructions
+openmp = True # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy_stencil
+Called DSL function 256 times in 11.825150523 seconds
+Measured times inside DSL function 120086.63247265626 cycles
+-->vertical blur
+Called DSL function 256 times in 36.318881185 seconds
+Measured times inside DSL function 368848.82761328126 cycles
+-->lapoflap
+Called DSL function 256 times in 48.463725195 seconds
+Measured times inside DSL function 492193.8129453125 cycles
+-->copy_stencil
+Called DSL function 256 times in 11.872591862 seconds
+Measured times inside DSL function 120569.07133984374 cycles
+-->vertical blur
+Called DSL function 256 times in 36.573046971 seconds
+Measured times inside DSL function 371430.31347265624 cycles
+-->lapoflap
+Called DSL function 256 times in 52.158416602 seconds
+Measured times inside DSL function 529715.8972695313 cycles
+
+5.)
+unroll_factor = 4
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = False # use avx2 instructions
+openmp = True # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy_stencil
+Called DSL function 256 times in 11.361567298 seconds
+Measured times inside DSL function 115378.06191406249 cycles
+-->vertical blur
+Called DSL function 256 times in 32.427799394 seconds
+Measured times inside DSL function 329331.267703125 cycles
+-->lapoflap
+Called DSL function 256 times in 39.9568979 seconds
+Measured times inside DSL function 405795.20455468755 cycles
+
+6.)
+unroll_factor = 8
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = False # use avx2 instructions
+openmp = True # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+--> lapoflap
+Called DSL function 256 times in 34.756710882 seconds
+Measured times inside DSL function 352982.0178789063 cycle
+-->vertical blur
+Called DSL function 256 times in 31.587117513 seconds
+Measured times inside DSL function 320792.3699609375 cycles
+-->copy stencil
+Called DSL function 256 times in 11.762738518 seconds
+Measured times inside DSL function 119453.09262890625 cycles
+
+7.)
+unroll_factor = 8
+repetitions = 1 # how many times should statements be executed
+unroll_offset = 0 # indexes the repeated statements in an unrolled loop
+vectorize = False # use avx2 instructions
+openmp = False # use openmp
+i = [0, 64]
+j = [0, 128]
+k = [0, 128]
+num_runs = 256
+-->copy stencil
+Called DSL function 256 times in 90.599052203 seconds
+Measured times inside DSL function 920133.8643515626 cycles
+-->vertical blur
+Called DSL function 256 times in 183.833517631 seconds
+Measured times inside DSL function 1867043.356246094 cycles
+-->lapoflap
+Called DSL function 256 times in 300.799992193 seconds
+Measured times inside DSL function 3054976.232824219 cycles
+
+
+
+
