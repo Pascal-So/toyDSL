@@ -31,3 +31,7 @@ Load up-to-date versions of our dependencies:
 module load CMake/3.14.5
 module load Boost/1.70.0-CrayGNU-20.11-python3
 ```
+
+## Testing
+
+To test if the generated code is working properly, one can run the example stencil_cody.py which will generate an image of the input and output data and check by himself if the result is the one expected.
