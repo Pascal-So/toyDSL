@@ -56,7 +56,7 @@ if __name__ == "__main__":
     time_sizes = []
 
     for index in range(len(vert)):
-        nb_measurements = 100
+        nb_measurements = 10
         time_all = []
         for _ in range(nb_measurements):
             input_warm, output_warm, tmp1_warm, tmp2_warm, i_warm, j_warm, k_warm = set_up_data(vert[index],plane[index])
