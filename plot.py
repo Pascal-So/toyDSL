@@ -31,6 +31,9 @@ if __name__ == "__main__":
     #plt.tick_params(axis='x', which='major', labelsize=3)
     #plt.show()
     plt.savefig("plot.png")
+    
+    ##For latex report
+    #print(df_sec.to_latex(index=False))
 
 
     # plt.ioff()
