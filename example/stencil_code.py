@@ -65,12 +65,6 @@ if __name__ == "__main__":
         input = output
         cpp_times.append(cpp_time)
     end = time.time_ns()
-    # Using this inupt, we expect the output of b to be
-    # [[2. 2. 2. 2. 0.]
-    #  [2. 2. 2. 2. 0.]
-    #  [2. 2. 2. 2. 0.]
-    #  [2. 2. 2. 2. 0.]
-    #  [1. 1. 1. 1. 0.]]
     print(output[:, :, 0].T)
 
     plt.imshow(output[output.shape[0] // 2, :, :], origin="lower")

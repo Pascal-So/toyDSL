@@ -34,4 +34,4 @@ module load Boost/1.70.0-CrayGNU-20.11-python3
 
 ## Testing
 
-To test if the generated code is working properly, one can run the example stencil_cody.py which will generate an image of the input and output data and check by himself if the result is the one expected.
+To test if the generated code is working properly, one can run the example stencil_cody.py which will generate an image of the input and output data and check by themself if the result is the one expected.
