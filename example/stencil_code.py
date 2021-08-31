@@ -61,7 +61,7 @@ if __name__ == "__main__":
     cpp_times = []
     start = time.time_ns()
     for _ in range(num_runs):
-        cpp_time = copy_stencil(output, input,tmp1,tmp2, i, j, k)
+        cpp_time = lapoflap(output, input,tmp1, i, j, k)
         input = output
         cpp_times.append(cpp_time)
     end = time.time_ns()

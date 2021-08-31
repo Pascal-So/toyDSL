@@ -322,10 +322,8 @@ class CodeGenCpp(IRNodeVisitor):
 
         scope = [""" #include <common_python.hpp>
             #include <immintrin.h>
-            #include <tsc_x86.h>
 
-            double {name}({array_args}, {bounds}) {{
-                const std::size_t num_runs = 1000;
+            void {name}({array_args}, {bounds}) {{
 
                 const auto [start_i, end_i, start_j, end_j, start_k, end_k] = get_bounds(i, j, k);
                 const std::size_t dim2 = (end_i - start_i);
@@ -333,8 +331,6 @@ class CodeGenCpp(IRNodeVisitor):
 
                     {converters}
 
-                const auto start_cycle = start_tsc();
-                for (std::size_t ii = 0; ii < num_runs; ii++){{
         """.format(
             name=node.name,
             array_args=", ".join(["array_t &{}_np".format(arg) for arg in node.api_signature]),
@@ -346,9 +342,8 @@ class CodeGenCpp(IRNodeVisitor):
             scope.extend(self.visit(stmt))
 
         scope.append("""
-                }}
 
-                return (double) stop_tsc(start_cycle)/num_runs;
+                return;
             }}
 
             BOOST_PYTHON_MODULE(dslgen) {{

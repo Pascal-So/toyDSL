@@ -20,16 +20,15 @@ def driver_cpp(function, hash: str, cache_dir: Path):
     # we need to do this outside of the if block because we need the function name
     ir = parse(function)
     function_name = ir.name
-    code = CodeGenCpp.apply(ir)
 
     # We actually hash the generated C++ code as well. This is a convenience feature
     # so that changing the C++ code generation causes an update. In a real usecase
     # the generated C++ code would not be hashed, we would only need the hash of
     # the input code, because end-users would not be changing the function mapping
     # input code to C++.
-    cpp_hash = hash_string(code)
+    # cpp_hash = hash_string(code)
 
-    code_dir = cache_dir / "cpp_{}_{}".format(hash, cpp_hash)
+    code_dir = cache_dir / "cpp_{}".format(hash)
     so_filename = code_dir / "build" / "dslgen.so"
 
     if not os.path.isfile(so_filename):
@@ -40,7 +39,7 @@ def driver_cpp(function, hash: str, cache_dir: Path):
         start_time = time.perf_counter()
 
         cmake_dir = Path(__file__).parent.parent / "cpp"
-
+        code = CodeGenCpp.apply(ir)
         cpp_filename = code_dir / "dslgen.cpp"
 
         os.makedirs(code_dir, exist_ok=True)

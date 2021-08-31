@@ -4,34 +4,30 @@ import time
 import matplotlib.pyplot as plt
 
 def copy_stencil(out_field, in_field, i, j, k):
-    for z in range(i[0],i[-1]):
-        for x in range(j[0],j[-1]):
-            for y in range(k[0],k[-1]):
-                out_field[z, x, y] = in_field[z, x, y]
+    out_field[:, :, :] = in_field[:, :, :]
 
 def vertical_blur(out_field, in_field, i, j, k):
     for z in range(i[0]+1,i[-1]-1):
-        for x in range(j[0],j[-1]):
-            for y in range(k[0],k[-1]):
-                #out_field[x, y, z] = (in_field[x, y, z+1] + in_field[x, y, z] + in_field[x, y, z-1]) / 3
-                out_field[z, x, y] = (in_field[z+1, x, y] + in_field[z, x, y] + in_field[z-1, x, y]) / 3
+        out_field[z, :, :] = (in_field[z+1, :, :] + in_field[z, :, :] + in_field[z-1, :, :]) / 3
 
-
-def lapoflap(out_field, in_field, tmp1_field, i, j, k):
+def lapoflap(out_field, in_field, tmp1_field, tmp2_field, i, j, k):
     """
     out = in - 0.03 * laplace of laplace
     """
-    for z in range(i[0],i[-1]):
-        for x in range(j[0]+1,j[-1]-1):
-            for y in range(k[0]+1,k[-1]-1):
-                tmp1_field[z, x, y] = -4.0 * in_field[z,x,y] + in_field[z,x-1,y] + \
-                    in_field[z,x+1,y] + in_field[z,x,y-1] + in_field[z,x,y+1]
-        for x in range(j[0]+1,j[-1]-1):
-            for y in range(k[0]+1,k[-1]-1):
-                out_field[z, x, y] = in_field[z, x, y] - 0.03 * (-4.0 * \
-                    tmp1_field[z,x,y] + tmp1_field[z,x-1,y] + tmp1_field[z,x+1,y] + \
-                    tmp1_field[z,x,y-1] + tmp1_field[z,x,y+1])
+    ib = k[0]+1
+    ie = k[-1]-1
+    jb = j[0]+1
+    je = j[-1]-1
 
+    tmp1_field[:, jb:je, ib:ie] = - 4. * in_field[:, jb:je, ib:ie]  \
+        + in_field[:, jb:je, ib - 1:ie - 1] + in_field[:, jb:je, ib + 1:ie + 1]  \
+        + in_field[:, jb - 1:je - 1, ib:ie] + in_field[:, jb + 1:je + 1, ib:ie]
+
+    tmp2_field[:, jb:je, ib:ie] = - 4. * tmp1_field[:, jb:je, ib:ie]  \
+        + tmp1_field[:, jb:je, ib - 1:ie - 1] + tmp1_field[:, jb:je, ib + 1:ie + 1]  \
+        + tmp1_field[:, jb - 1:je - 1, ib:ie] + tmp1_field[:, jb + 1:je + 1, ib:ie]
+
+    out_field[:, :, :] = in_field[:, :, :] - 0.03 * tmp2_field[:, :, :]
 def set_up_data():
     """
     Set up the input for the test example
@@ -51,10 +47,11 @@ def set_up_data():
 if __name__ == "__main__":
     input, output, tmp1, tmp2, i, j, k = set_up_data()
 
-    num_runs = 20
+    num_runs = 1024
 
     plt.ioff()
     plt.imshow(input[input.shape[0] // 2, :, :], origin="lower")
+    # plt.imshow(input[:, :, input.shape[0] // 2], origin="lower")
     plt.colorbar()
     plt.savefig("in_field.png")
     plt.close()
@@ -63,10 +60,9 @@ if __name__ == "__main__":
     start = time.time_ns()
     for _ in range(num_runs):
         #cpp_time = copy_stencil(output, input, i, j, k)
-        #cpp_time = vertical_blur(output, input, i, j, k)
-        cpp_time = lapoflap(output, input,tmp1, i, j, k)
+        # vertical_blur(output, input, i, j, k)
+        lapoflap(output, input,tmp1,tmp2, i, j, k)
         input = output
-        cpp_times.append(cpp_time)
     end = time.time_ns()
     # Using this inupt, we expect the output of b to be
     # [[2. 2. 2. 2. 0.]
@@ -77,6 +73,7 @@ if __name__ == "__main__":
     print(output[:, :, 0].T)
 
     plt.imshow(output[output.shape[0] // 2, :, :], origin="lower")
+    # plt.imshow(output[:, :, output.shape[0] // 2], origin="lower")
     plt.colorbar()
     plt.savefig("out_field.png")
     plt.close()
