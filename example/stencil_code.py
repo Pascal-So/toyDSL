@@ -57,13 +57,11 @@ if __name__ == "__main__":
     plt.colorbar()
     plt.savefig("in_field.png")
     plt.close()
-
-    cpp_times = []
+    
     start = time.time_ns()
     for _ in range(num_runs):
-        cpp_time = lapoflap(output, input,tmp1, i, j, k)
+        lapoflap(output, input,tmp1, i, j, k)
         input = output
-        cpp_times.append(cpp_time)
     end = time.time_ns()
     print(output[:, :, 0].T)
 
@@ -74,4 +72,3 @@ if __name__ == "__main__":
 
 
     print("Called DSL function {} times in {} seconds".format(num_runs, (end-start)/(10**9)))
-    print("Measured times inside DSL function {} cycles".format(np.mean(cpp_times)))
