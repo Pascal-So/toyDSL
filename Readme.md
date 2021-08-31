@@ -17,7 +17,7 @@ cd /path/to/toyDSL
 
 python -m venv venv
 . venv/bin/activate
-pip install numpy black
+pip install numpy black matplotlib
 pip install .
 
 PYTHONPATH=$PYTHONPATH:$PWD python example/basic_function.py
