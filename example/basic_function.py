@@ -38,13 +38,10 @@ if __name__ == "__main__":
 
     num_runs = 10
 
-    cpp_times = []
     start = time.time_ns()
     for _ in range(num_runs):
-        cpp_time = otherfunc(output, input, i, j, k)
-        cpp_times.append(cpp_time)
+        otherfunc(output, input, i, j, k)
     end = time.time_ns()
     print(output[:, :, 0].T)
 
     print("Called otherfunc {} times in {} seconds".format(num_runs, (end-start)/(10**9)))
-    print("Measured times inside otherfunc:", cpp_times)
